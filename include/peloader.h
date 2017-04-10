@@ -753,7 +753,7 @@ public:
             }
             else
             {
-                return ( LIST_EMPTY( this->dataAlloc.blockList.root ) == true );
+                return ( LIST_EMPTY( this->dataAlloc.blockList.root ) == true ) && ( this->stream.Size() == 0 );
             }
         }
 
@@ -974,8 +974,8 @@ private:
 
         bool FindSectionSpace( std::uint32_t spanSize, std::uint32_t& addrOut );
 
-        std::uint32_t GetSectionAlignment( void )       { return this->sectionAlignment; }
-        std::uint32_t GetImageBase( void )              { return this->imageBase; }
+        std::uint32_t GetSectionAlignment( void ) const { return this->sectionAlignment; }
+        std::uint32_t GetImageBase( void ) const        { return this->imageBase; }
 
         std::uint32_t GetSectionCount( void ) const     { return this->numSections; }
 
@@ -1348,6 +1348,7 @@ public:
     bool RemoveSection( PESection *section );
 
     std::uint32_t GetSectionCount( void ) const     { return this->sections.GetSectionCount(); }
+    std::uint32_t GetSectionAlignment( void ) const { return this->sections.GetSectionAlignment(); }
 
     bool FindSectionSpace( std::uint32_t spanSize, std::uint32_t& addrOut );
 
@@ -1810,9 +1811,9 @@ public:
     // Information API.
     inline std::uint64_t GetImageBase( void ) const     { return this->peOptHeader.imageBase; }
 
-private:
     // Helper functions to off-load the duty work from the main
     // serialization function.
+    // Could actually be required by outside code because of PEStructures.
     std::uint16_t GetPENativeFileFlags( void );
     std::uint16_t GetPENativeDLLOptFlags( void );
 

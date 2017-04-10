@@ -151,6 +151,7 @@
     <ClInclude Include="..\include\peframework.h" />
     <ClInclude Include="..\include\peloader.common.h" />
     <ClInclude Include="..\include\peloader.h" />
+    <ClInclude Include="..\include\peloader.serialize.h" />
     <ClInclude Include="..\include\pestream.h" />
     <ClInclude Include="..\src\peloader.internal.hxx" />
   </ItemGroup>

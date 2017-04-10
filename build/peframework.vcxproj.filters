@@ -25,6 +25,9 @@
     <ClInclude Include="..\include\peexcept.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\peloader.serialize.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="nativeconfig">
