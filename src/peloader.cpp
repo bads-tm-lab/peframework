@@ -2,7 +2,7 @@
 
 #include "peloader.internal.hxx"
 
-PEFile::PEFile( void ) : resourceRoot( std::u16string() ), sections( 0x1000, 0x10000 )
+PEFile::PEFile( void ) : resourceRoot( false, std::u16string(), 0 ), sections( 0x1000, 0x10000 )
 {
     // By default we generate plain PE32+ files.
     // If true then PE32+ files are generated.

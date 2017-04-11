@@ -71,3 +71,24 @@ const PEFile::PEImportDesc::importFunc* PEFile::PEImportDesc::FindImportEntry( s
 
     return funcOut;
 }
+
+PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::CreateEquivalentImportsList( const functions_t& funcs )
+{
+    PEImportDesc::functions_t newFuncs;
+
+    size_t modImpCount = funcs.size();
+
+    for ( size_t n = 0; n < modImpCount; n++ )
+    {
+        const PEFile::PEImportDesc::importFunc& impFunc = funcs[ n ];
+
+        PEFile::PEImportDesc::importFunc carbonCopy;
+        carbonCopy.isOrdinalImport = impFunc.isOrdinalImport;
+        carbonCopy.name = impFunc.name;
+        carbonCopy.ordinal_hint = impFunc.ordinal_hint;
+
+        newFuncs.push_back( std::move( carbonCopy ) );
+    }
+
+    return newFuncs;
+}

@@ -7,6 +7,7 @@
     <ClCompile Include="..\src\peloader.write.cpp" />
     <ClCompile Include="..\src\peloader.debug.cpp" />
     <ClCompile Include="..\src\peloader.imports.cpp" />
+    <ClCompile Include="..\src\peloader.resource.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\peloader.internal.hxx" />

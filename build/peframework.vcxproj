@@ -144,6 +144,7 @@
     <ClCompile Include="..\src\peloader.debug.cpp" />
     <ClCompile Include="..\src\peloader.imports.cpp" />
     <ClCompile Include="..\src\peloader.read.cpp" />
+    <ClCompile Include="..\src\peloader.resource.cpp" />
     <ClCompile Include="..\src\peloader.write.cpp" />
   </ItemGroup>
   <ItemGroup>

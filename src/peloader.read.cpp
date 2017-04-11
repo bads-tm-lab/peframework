@@ -1102,13 +1102,16 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     }
 
     // * Resources.
-    PEResourceDir resourceRoot = std::u16string();  // very weird assignment here, but required; call the constructor.
+    PEResourceDir resourceRoot( false, std::u16string(), 0 );
     {
         struct helpers
         {
-            inline static PEResourceDir LoadResourceDirectory( PESectionMan& sections, PEDataStream& rootStream, std::u16string nameOfDir, const PEStructures::IMAGE_RESOURCE_DIRECTORY& serResDir )
+            inline static PEResourceDir LoadResourceDirectory(
+                PESectionMan& sections, PEDataStream& rootStream,
+                bool isIdentifierName, std::u16string nameOfDir, std::uint16_t identifier,
+                const PEStructures::IMAGE_RESOURCE_DIRECTORY& serResDir )
             {
-                PEResourceDir curDir( std::move( nameOfDir ) );
+                PEResourceDir curDir( std::move( isIdentifierName ), std::move( nameOfDir ), std::move( identifier ) );
 
                 // Store general details.
                 curDir.characteristics = serResDir.Characteristics;
@@ -1122,7 +1125,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 std::uint16_t numIDEntries = serResDir.NumberOfIdEntries;
 
                 // Function to read the data behind a resource directory entry.
-                auto resDataParser = [&]( std::u16string nameOfItem, const PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY& entry ) -> PEResourceItem*
+                auto resDataParser = [&]( bool isIdentifierName, std::u16string nameOfItem, std::uint16_t identifier, const PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY& entry ) -> PEResourceItem*
                 {
                     // Seek to this data entry.
                     rootStream.Seek( entry.OffsetToData );
@@ -1134,11 +1137,13 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         PEStructures::IMAGE_RESOURCE_DIRECTORY subDirData;
                         rootStream.Read( &subDirData, sizeof(subDirData) );
 
-                        PEResourceDir subDir = LoadResourceDirectory( sections, rootStream, std::move( nameOfItem ), subDirData );
+                        PEResourceDir subDir = LoadResourceDirectory(
+                            sections, rootStream,
+                            std::move( isIdentifierName ), std::move( nameOfItem ), std::move( identifier ),
+                            subDirData
+                        );
 
-                        PEResourceDir *subDirItem = new PEResourceDir( std::move( subDir ) );
-
-                        return subDirItem;
+                        return new PEResourceDir( std::move( subDir ) );
                     }
                     else
                     {
@@ -1164,15 +1169,13 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                         // We dont have to recurse anymore.
                         PEResourceInfo resItem(
-                            std::move( nameOfItem ),
-                            dataSect, std::move( sectOff ), itemData.Size
+                            std::move( isIdentifierName ), std::move( nameOfItem ), std::move( identifier ),
+                            PESectionDataReference( dataSect, std::move( sectOff ), itemData.Size )
                         );
                         resItem.codePage = itemData.CodePage;
                         resItem.reserved = itemData.Reserved;
 
-                        PEResourceInfo *resItemPtr = new PEResourceInfo( std::move( resItem ) );
-
-                        return resItemPtr;
+                        return new PEResourceInfo( std::move( resItem ) );
                     }
                 };
 
@@ -1210,9 +1213,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
 
                     // Create a resource item.
-                    PEResourceItem *resItem = resDataParser( std::move( nameOfItem ), namedEntry );
-
-                    resItem->hasIdentifierName = false;
+                    PEResourceItem *resItem = resDataParser( false, std::move( nameOfItem ), 0, namedEntry );
 
                     // Store ourselves.
                     curDir.children.push_back( resItem );
@@ -1234,10 +1235,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
 
                     // Create a resource item.
-                    PEResourceItem *resItem = resDataParser( std::u16string(), idEntry );
-
-                    resItem->identifier = idEntry.Id;
-                    resItem->hasIdentifierName = true;
+                    PEResourceItem *resItem = resDataParser( true, std::u16string(), idEntry.Id, idEntry );
 
                     // Store it.
                     curDir.children.push_back( resItem );
@@ -1270,7 +1268,11 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             PEStructures::IMAGE_RESOURCE_DIRECTORY resDir;
             resDataStream.Read( &resDir, sizeof(resDir) );
 
-            resourceRoot = helpers::LoadResourceDirectory( sections, resDataStream, std::u16string(), resDir );
+            resourceRoot = helpers::LoadResourceDirectory(
+                sections, resDataStream,
+                false, std::u16string(), 0,
+                resDir
+            );
         }
     }
 

@@ -1450,6 +1450,8 @@ public:
 
         static void AllocatePEImportFunctionsData( PESection& writeSect, functions_t& functionList );
 
+        static functions_t CreateEquivalentImportsList( const functions_t& right );
+
         functions_t funcs;
         std::string DLLName;
 
@@ -1465,7 +1467,7 @@ public:
     PESectionAllocation importsAllocEntry;
 
     // Resource information.
-    struct PEResourceItem
+    struct PEResourceItem abstract
     {
         enum class eType
         {
@@ -1473,10 +1475,11 @@ public:
             DATA
         };
 
-        inline PEResourceItem( eType typeDesc, std::u16string name ) : itemType( typeDesc ), name( std::move( name ) )
+        inline PEResourceItem( eType typeDesc, bool isIdentifierName, std::u16string name, std::uint16_t identifier )
+            : itemType( std::move( typeDesc ) ),
+              hasIdentifierName( std::move( isIdentifierName ) ), name( std::move( name ) ), identifier( std::move( identifier ) )
         {
-            this->identifier = 0;
-            this->hasIdentifierName = false;
+            return;
         }
 
         virtual ~PEResourceItem( void )
@@ -1484,17 +1487,20 @@ public:
             return;
         }
 
+        // Helpers.
+        std::wstring GetName( void ) const;
+
         eType itemType;
         std::u16string name;        // valid if hasIdentifierName == false
         std::uint16_t identifier;   // valid if hasIdentifierName == true
         bool hasIdentifierName;     // if true then identifier field is valid, name is not
     };
 
-    struct PEResourceInfo : PEResourceItem
+    struct PEResourceInfo : public PEResourceItem
     {
-        inline PEResourceInfo( std::u16string name, PESection *dataSect, std::uint32_t dataOff, std::uint32_t dataSize )
-            : PEResourceItem( eType::DATA, std::move( name ) ),
-              sectRef( dataSect, dataOff, dataSize )
+        inline PEResourceInfo( bool isIdentifierName, std::u16string name, std::uint16_t identifier, PESectionDataReference dataRef )
+            : PEResourceItem( eType::DATA, std::move( isIdentifierName ), std::move( name ), std::move( identifier ) ),
+              sectRef( std::move( dataRef ) )
         {
             this->codePage = 0;
             this->reserved = 0;
@@ -1507,9 +1513,10 @@ public:
         std::uint32_t reserved;
     };
     
-    struct PEResourceDir : PEResourceItem
+    struct PEResourceDir : public PEResourceItem
     {
-        inline PEResourceDir( std::u16string name ) : PEResourceItem( eType::DIRECTORY, std::move( name ) )
+        inline PEResourceDir( bool isIdentifierName, std::u16string name, std::uint16_t identifier )
+            : PEResourceItem( eType::DIRECTORY, std::move( isIdentifierName ), std::move( name ), std::move( identifier ) )
         {
             this->characteristics = 0;
             this->timeDateStamp = 0;
@@ -1534,6 +1541,11 @@ public:
 
         inline PEResourceDir& operator = ( const PEResourceDir& right ) = delete;
         inline PEResourceDir& operator = ( PEResourceDir&& right ) = default;
+
+        // Helper API.
+        PEResourceItem* FindItem( bool isIdentifierName, const std::u16string& name, std::uint16_t identifier );
+
+        bool RemoveItem( const PEResourceItem *theItem );
 
         std::uint32_t characteristics;
         std::uint32_t timeDateStamp;
