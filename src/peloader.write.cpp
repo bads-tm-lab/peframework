@@ -116,19 +116,17 @@ struct item_allocInfo
     std::uint32_t name_off;         // Offset to the name string (unicode); only valid if child
     std::uint32_t dataitem_off;     // Offset to the resource data item info; only valid if leaf
 
-    std::unordered_map <size_t, item_allocInfo> children;
+    std::unordered_map <const PEFile::PEResourceItem*, item_allocInfo> children;
 };
 
 template <typename callbackType>
 static AINLINE void ForAllResourceItems( const PEFile::PEResourceDir& resDir, item_allocInfo& allocItem, callbackType& cb )
 {
-    size_t numChildren = resDir.children.size();
-
-    for ( size_t n = 0; n < numChildren; n++ )
+    // Named children.
+    resDir.ForAllChildren(
+        [&]( const PEFile::PEResourceItem *childItem, bool hasIdentiferName )
     {
-        const PEFile::PEResourceItem *childItem = resDir.children[ n ];
-
-        auto& childAllocItemNode = allocItem.children.find( n );
+        auto& childAllocItemNode = allocItem.children.find( childItem );
 
         assert( childAllocItemNode != allocItem.children.end() );
 
@@ -144,7 +142,7 @@ static AINLINE void ForAllResourceItems( const PEFile::PEResourceDir& resDir, it
             // Now for all children.
             ForAllResourceItems( *childItemDir, childAllocItem, cb );
         }
-    }
+    });
 }
 
 };
@@ -674,7 +672,12 @@ void PEFile::CommitDataDirectories( void )
                                 std::uint32_t itemSize = sizeof(PEStructures::IMAGE_RESOURCE_DIRECTORY);
 
                                 // and the items following it.
-                                std::uint32_t numChildren = (std::uint32_t)itemDir->children.size();
+                                size_t numNamedChildren = itemDir->namedChildren.size();
+                                size_t numIDChildren = itemDir->idChildren.size();
+
+                                std::uint32_t numChildren =
+                                    (std::uint32_t)numNamedChildren +
+                                    (std::uint32_t)numIDChildren;
 
                                 itemSize += numChildren * sizeof(PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY);
 
@@ -682,12 +685,9 @@ void PEFile::CommitDataDirectories( void )
 
                                 // Now allocate all children aswell.
                                 // First allocate the named entries.
-                                for ( size_t n = 0; n < numChildren; n++ )
+                                for ( const PEFile::PEResourceItem *childItem : itemDir->namedChildren )
                                 {
-                                    const PEResourceItem *childItem = itemDir->children[n];
-
-                                    if ( childItem->hasIdentifierName != false )
-                                        continue;
+                                    assert ( childItem->hasIdentifierName == false );
 
                                     item_allocInfo childAlloc = AllocateResourceDirectory_dirData( allocMan, childItem );
 
@@ -695,23 +695,20 @@ void PEFile::CommitDataDirectories( void )
                                     childAlloc.name_off = 0;
 
                                     // Register this child alloc item.
-                                    infoOut.children.insert( std::make_pair( n, std::move( childAlloc ) ) );
+                                    infoOut.children.insert( std::make_pair( childItem, std::move( childAlloc ) ) );
                                 }
 
                                 // Now allocate all ID based entries.
-                                for ( size_t n = 0; n < numChildren; n++ )
+                                for ( const PEFile::PEResourceItem *childItem : itemDir->idChildren )
                                 {
-                                    const PEResourceItem *childItem = itemDir->children[n];
-
-                                    if ( childItem->hasIdentifierName != true )
-                                        continue;
+                                    assert( childItem->hasIdentifierName == true );
 
                                     item_allocInfo childAlloc = AllocateResourceDirectory_dirData( allocMan, childItem );
 
                                     // Not named.
                                     childAlloc.name_off = 0;
 
-                                    infoOut.children.insert( std::make_pair( n, std::move( childAlloc ) ) );
+                                    infoOut.children.insert( std::make_pair( childItem, std::move( childAlloc ) ) );
                                 }
                             }
                             else if ( itemType == PEResourceItem::eType::DATA )
@@ -779,6 +776,51 @@ void PEFile::CommitDataDirectories( void )
                             });
                         }
 
+                        static void WriteResourceDataItem( const PEResourceInfo *dataItem, const item_allocInfo& dataAllocInfo, PESectionAllocation& writeBuf )
+                        {
+                            // TODO: once we support injecting data buffers into the resource directory,
+                            // we will have to extend this with memory stream reading support.
+
+                            std::uint32_t fileWriteOff = dataAllocInfo.dataitem_off;
+
+                            assert( fileWriteOff != 0 );    // invalid because already taken by root directory info.
+
+                            PEDataStream fileSrcStream = PEDataStream::fromDataRef( dataItem->sectRef );
+
+                            // Write data over.
+                            const std::uint32_t fileDataSize = dataItem->sectRef.GetDataSize();
+                            {
+                                char buffer[ 0x4000 ];
+
+                                std::uint32_t curDataOff = 0;
+                                    
+                                while ( curDataOff < fileDataSize )
+                                {
+                                    std::uint32_t actualProcCount = std::min( fileDataSize - curDataOff, (std::uint32_t)sizeof(buffer) );
+
+                                    fileSrcStream.Read( buffer, actualProcCount );
+
+                                    writeBuf.WriteToSection( buffer, actualProcCount, fileWriteOff + curDataOff );
+
+                                    curDataOff += sizeof(buffer);
+                                }
+                            }
+
+                            std::uint32_t dataEntryOff = dataAllocInfo.entry_off;
+
+                            PEStructures::IMAGE_RESOURCE_DATA_ENTRY nativeDataEntry;
+                            // We need to write the RVA later.
+                            nativeDataEntry.OffsetToData = 0;
+                            writeBuf.RegisterTargetRVA( dataEntryOff + offsetof(PEStructures::IMAGE_RESOURCE_DATA_ENTRY, OffsetToData), writeBuf.GetSection(), writeBuf.ResolveInternalOffset( fileWriteOff ) );
+                            nativeDataEntry.Size = fileDataSize;
+                            nativeDataEntry.CodePage = dataItem->codePage;
+                            nativeDataEntry.Reserved = dataItem->reserved;
+
+                            assert( dataAllocInfo.entry_off != 0 );    // invalid because zero is already taken by root directory.
+
+                            writeBuf.WriteToSection( &nativeDataEntry, sizeof(nativeDataEntry), dataAllocInfo.entry_off );
+                        }
+
                         static void WriteResourceDirectory( const PEResourceDir& writeNode, const item_allocInfo& allocNode, PESectionAllocation& writeBuf )
                         {
                             PEStructures::IMAGE_RESOURCE_DIRECTORY nativeResDir;
@@ -787,29 +829,12 @@ void PEFile::CommitDataDirectories( void )
                             nativeResDir.MajorVersion = writeNode.majorVersion;
                             nativeResDir.MinorVersion = writeNode.minorVersion;
                         
-                            // Count how many named and how many ID children we have.
-                            std::uint16_t numNamedEntries = 0;
-                            std::uint16_t numIDEntries = 0;
+                            // Count how many named and how many children we have.
+                            size_t numNamedEntries = writeNode.namedChildren.size();
+                            size_t numIDEntries = writeNode.idChildren.size();
 
-                            std::uint32_t numChildren = (std::uint32_t)writeNode.children.size();
-                            {
-                                for ( size_t n = 0; n < numChildren; n++ )
-                                {
-                                    const PEResourceItem *childItem = writeNode.children[ n ];
-
-                                    if ( !childItem->hasIdentifierName )
-                                    {
-                                        numNamedEntries++;
-                                    }
-                                    else
-                                    {
-                                        numIDEntries++;
-                                    }
-                                }
-                            }
-
-                            nativeResDir.NumberOfNamedEntries = numNamedEntries;
-                            nativeResDir.NumberOfIdEntries = numIDEntries;
+                            nativeResDir.NumberOfNamedEntries = (std::uint16_t)numNamedEntries;
+                            nativeResDir.NumberOfIdEntries = (std::uint16_t)numIDEntries;
 
                             const std::uint32_t dirWriteOff = allocNode.entry_off;
 
@@ -818,11 +843,12 @@ void PEFile::CommitDataDirectories( void )
                             // Now write all children.
                             const std::uint32_t linkWriteOff = ( dirWriteOff + sizeof(nativeResDir) );
 
-                            for ( std::uint32_t n = 0; n < numChildren; n++ )
-                            {
-                                const PEResourceItem *childItem = writeNode.children[ n ];
+                            // First all named ones.
+                            size_t writeIndex = 0;
 
-                                auto& childAllocInfoNode = allocNode.children.find( n );
+                            for ( const PEResourceItem *childItem : writeNode.namedChildren )
+                            {
+                                auto& childAllocInfoNode = allocNode.children.find( childItem );
 
                                 assert( childAllocInfoNode != allocNode.children.end() );
 
@@ -832,7 +858,6 @@ void PEFile::CommitDataDirectories( void )
                                 PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY lnkEntry = { 0 };
 
                                 // Write and register ID information, be it name or number.
-                                if ( !childItem->hasIdentifierName )
                                 {
                                     lnkEntry.NameIsString = true;
 
@@ -851,7 +876,52 @@ void PEFile::CommitDataDirectories( void )
                                     // Give the offset.
                                     lnkEntry.NameOffset = childAllocInfo.name_off;
                                 }
+
+                                PEResourceItem::eType itemType = childItem->itemType;
+
+                                // Give information about the child we are going to write.
+                                lnkEntry.DataIsDirectory = ( itemType == PEResourceItem::eType::DIRECTORY );
+                                lnkEntry.OffsetToDirectory = ( childAllocInfo.entry_off );
+
+                                const std::uint32_t lnkEntryOff = ( linkWriteOff + writeIndex * sizeof(lnkEntry) );
+
+                                writeBuf.WriteToSection( &lnkEntry, sizeof(lnkEntry), lnkEntryOff );
+
+                                // Advance the write index.
+                                writeIndex++;
+
+                                if ( itemType == PEResourceItem::eType::DIRECTORY )
+                                {
+                                    const PEResourceDir *childDir = (const PEResourceDir*)childItem;
+
+                                    // Just recurse to write more data.
+                                    WriteResourceDirectory( *childDir, childAllocInfo, writeBuf );
+                                }
+                                else if ( itemType == PEResourceItem::eType::DATA )
+                                {
+                                    const PEResourceInfo *childData = (const PEResourceInfo*)childItem;
+
+                                    WriteResourceDataItem( childData, childAllocInfo, writeBuf );
+                                }
                                 else
+                                {
+                                    assert( 0 );
+                                }
+                            }
+
+                            // Now all ID ones.
+                            for ( const PEResourceItem *childItem : writeNode.idChildren )
+                            {
+                                auto& childAllocInfoNode = allocNode.children.find( childItem );
+
+                                assert( childAllocInfoNode != allocNode.children.end() );
+
+                                const item_allocInfo& childAllocInfo = childAllocInfoNode->second;
+
+                                // We write a link entry for this child.
+                                PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY lnkEntry = { 0 };
+
+                                // Write and register ID information, be it name or number.
                                 {
                                     lnkEntry.NameIsString = false;
 
@@ -865,9 +935,12 @@ void PEFile::CommitDataDirectories( void )
                                 lnkEntry.DataIsDirectory = ( itemType == PEResourceItem::eType::DIRECTORY );
                                 lnkEntry.OffsetToDirectory = ( childAllocInfo.entry_off );
 
-                                const std::uint32_t lnkEntryOff = ( linkWriteOff + n * sizeof(lnkEntry) );
+                                const std::uint32_t lnkEntryOff = ( linkWriteOff + writeIndex * sizeof(lnkEntry) );
 
                                 writeBuf.WriteToSection( &lnkEntry, sizeof(lnkEntry), lnkEntryOff );
+
+                                // Advance the write index.
+                                writeIndex++;
 
                                 if ( itemType == PEResourceItem::eType::DIRECTORY )
                                 {
@@ -880,47 +953,7 @@ void PEFile::CommitDataDirectories( void )
                                 {
                                     const PEResourceInfo *childData = (const PEResourceInfo*)childItem;
 
-                                    // TODO: once we support injecting data buffers into the resource directory,
-                                    // we will have to extend this with memory stream reading support.
-
-                                    std::uint32_t fileWriteOff = childAllocInfo.dataitem_off;
-
-                                    assert( fileWriteOff != 0 );    // invalid because already taken by root directory info.
-
-                                    PEDataStream fileSrcStream = PEDataStream::fromDataRef( childData->sectRef );
-
-                                    // Write data over.
-                                    const std::uint32_t fileDataSize = childData->sectRef.GetDataSize();
-                                    {
-                                        char buffer[ 0x4000 ];
-
-                                        std::uint32_t curDataOff = 0;
-                                    
-                                        while ( curDataOff < fileDataSize )
-                                        {
-                                            std::uint32_t actualProcCount = std::min( fileDataSize - curDataOff, (std::uint32_t)sizeof(buffer) );
-
-                                            fileSrcStream.Read( buffer, actualProcCount );
-
-                                            writeBuf.WriteToSection( buffer, actualProcCount, fileWriteOff + curDataOff );
-
-                                            curDataOff += sizeof(buffer);
-                                        }
-                                    }
-
-                                    std::uint32_t dataEntryOff = childAllocInfo.entry_off;
-
-                                    PEStructures::IMAGE_RESOURCE_DATA_ENTRY nativeDataEntry;
-                                    // We need to write the RVA later.
-                                    nativeDataEntry.OffsetToData = 0;
-                                    writeBuf.RegisterTargetRVA( dataEntryOff + offsetof(PEStructures::IMAGE_RESOURCE_DATA_ENTRY, OffsetToData), writeBuf.GetSection(), writeBuf.ResolveInternalOffset( fileWriteOff ) );
-                                    nativeDataEntry.Size = fileDataSize;
-                                    nativeDataEntry.CodePage = childData->codePage;
-                                    nativeDataEntry.Reserved = childData->reserved;
-
-                                    assert( childAllocInfo.entry_off != 0 );    // invalid because zero is already taken by root directory.
-
-                                    writeBuf.WriteToSection( &nativeDataEntry, sizeof(nativeDataEntry), childAllocInfo.entry_off );
+                                    WriteResourceDataItem( childData, childAllocInfo, writeBuf );
                                 }
                                 else
                                 {

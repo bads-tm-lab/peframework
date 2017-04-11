@@ -6,20 +6,22 @@
 // Generic finder routine.
 PEFile::PEResourceItem* PEFile::PEResourceDir::FindItem( bool isIdentifierName, const std::u16string& name, std::uint16_t identifier )
 {
-    for ( PEResourceItem *resItem : this->children )
+    if ( isIdentifierName )
     {
-        if ( resItem->hasIdentifierName != isIdentifierName )
-            continue;
+        auto findIter = this->idChildren.find( identifier );
 
-        if ( !isIdentifierName )
+        if ( findIter != this->idChildren.end() )
         {
-            if ( resItem->name == name )
-                return resItem;
+            return *findIter;
         }
-        else
+    }
+    else
+    {
+        auto findIter = this->namedChildren.find( name );
+
+        if ( findIter != this->namedChildren.end() )
         {
-            if ( resItem->identifier == identifier )
-                return resItem;
+            return *findIter;
         }
     }
 
@@ -44,14 +46,44 @@ std::wstring PEFile::PEResourceItem::GetName( void ) const
     }
 }
 
-bool PEFile::PEResourceDir::RemoveItem( const PEFile::PEResourceItem *theItem )
+bool PEFile::PEResourceDir::AddItem( PEFile::PEResourceItem *theItem )
 {
-    auto findIter = std::find( this->children.begin(), this->children.end(), theItem );
-
-    if ( findIter == this->children.end() )
-        return false;
-
-    this->children.erase( findIter );
+    if ( theItem->hasIdentifierName )
+    {
+        this->idChildren.insert( theItem );
+    }
+    else
+    {
+        this->namedChildren.insert( theItem );
+    }
 
     return true;
+}
+
+bool PEFile::PEResourceDir::RemoveItem( const PEFile::PEResourceItem *theItem )
+{
+    if ( theItem->hasIdentifierName )
+    {
+        auto findIter = this->idChildren.find( theItem );
+
+        if ( findIter != this->idChildren.end() )
+        {
+            this->idChildren.erase( findIter );
+            
+            return true;
+        }
+    }
+    else
+    {
+        auto findIter = this->namedChildren.find( theItem );
+
+        if ( findIter != this->namedChildren.end() )
+        {
+            this->namedChildren.erase( findIter );
+
+            return true;
+        }
+    }
+
+    return false;
 }

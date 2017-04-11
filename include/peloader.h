@@ -1491,9 +1491,9 @@ public:
         std::wstring GetName( void ) const;
 
         eType itemType;
-        std::u16string name;        // valid if hasIdentifierName == false
-        std::uint16_t identifier;   // valid if hasIdentifierName == true
-        bool hasIdentifierName;     // if true then identifier field is valid, name is not
+        std::u16string name;            // valid if hasIdentifierName == false
+        std::uint16_t identifier;       // valid if hasIdentifierName == true
+        bool hasIdentifierName;         // if true then identifier field is valid, name is not
     };
 
     struct PEResourceInfo : public PEResourceItem
@@ -1531,12 +1531,19 @@ public:
         {
             // We need to destroy all our children, because they are
             // dynamically allocated.
-            for ( PEResourceItem *item : this->children )
+            for ( PEResourceItem *item : this->namedChildren )
             {
                 delete item;
             }
 
-            this->children.clear();
+            this->namedChildren.clear();
+
+            for ( PEResourceItem *item : this->idChildren )
+            {
+                delete item;
+            }
+
+            this->idChildren.clear();
         }
 
         inline PEResourceDir& operator = ( const PEResourceDir& right ) = delete;
@@ -1545,15 +1552,77 @@ public:
         // Helper API.
         PEResourceItem* FindItem( bool isIdentifierName, const std::u16string& name, std::uint16_t identifier );
 
+        bool AddItem( PEResourceItem *theItem );
         bool RemoveItem( const PEResourceItem *theItem );
+        bool IsEmpty( void ) const
+        {
+            return ( this->namedChildren.empty() && this->idChildren.empty() );
+        }
+
+        template <typename callbackType>
+        inline void ForAllChildren( callbackType& cb ) const
+        {
+            for ( const PEResourceItem *childItem : this->namedChildren )
+            {
+                cb( childItem, false );
+            }
+
+            for ( const PEResourceItem *childItem : this->idChildren )
+            {
+                cb( childItem, true );
+            }
+        }
 
         std::uint32_t characteristics;
         std::uint32_t timeDateStamp;
         std::uint16_t majorVersion;
         std::uint16_t minorVersion;
         
+    private:
+        struct _compareNamedEntry
+        {
+            inline bool operator() ( const PEResourceItem *left, const PEResourceItem *right ) const
+            {
+                return ( left->name < right->name );
+            }
+
+            inline bool operator() ( const std::u16string& left, const PEResourceItem *right ) const
+            {
+                return ( left < right->name );
+            }
+
+            inline bool operator() ( const PEResourceItem *left, const std::u16string& right ) const
+            {
+                return ( left->name < right );
+            }
+
+            typedef std::u16string is_transparent;
+        };
+
+        struct _compareIDEntry
+        {
+            inline bool operator() ( const PEResourceItem *left, const PEResourceItem *right ) const
+            {
+                return ( left->identifier < right->identifier );
+            }
+
+            inline bool operator() ( std::uint16_t left, const PEResourceItem *right ) const
+            {
+                return ( left < right->identifier );
+            }
+
+            inline bool operator() ( const PEResourceItem *left, std::uint16_t right ) const
+            {
+                return ( left->identifier < right );
+            }
+
+            typedef std::uint16_t is_transparent;
+        };
+
+    public:
         // We contain named and id entries.
-        std::vector <PEResourceItem*> children;
+        std::set <PEResourceItem*, _compareNamedEntry> namedChildren;
+        std::set <PEResourceItem*, _compareIDEntry> idChildren;
     };
     PEResourceDir resourceRoot;
     

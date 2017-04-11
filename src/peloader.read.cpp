@@ -1179,8 +1179,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
                 };
 
-                curDir.children.reserve( numNamedEntries + numIDEntries );
-
                 // Due to us using only one PEDataStream we need to seek to all our entries properly.
                 std::uint32_t subDirStartOff = rootStream.Tell();
 
@@ -1216,7 +1214,16 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     PEResourceItem *resItem = resDataParser( false, std::move( nameOfItem ), 0, namedEntry );
 
                     // Store ourselves.
-                    curDir.children.push_back( resItem );
+                    try
+                    {
+                        curDir.namedChildren.insert( resItem );
+                    }
+                    catch( ... )
+                    {
+                        delete resItem;
+
+                        throw;
+                    }
                 }
 
                 for ( std::uint32_t n = 0; n < numIDEntries; n++ )
@@ -1238,7 +1245,16 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     PEResourceItem *resItem = resDataParser( true, std::u16string(), idEntry.Id, idEntry );
 
                     // Store it.
-                    curDir.children.push_back( resItem );
+                    try
+                    {
+                        curDir.idChildren.insert( resItem );
+                    }
+                    catch( ... )
+                    {
+                        delete resItem;
+
+                        throw;
+                    }
                 }
 
                 return curDir;
