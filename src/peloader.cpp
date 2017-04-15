@@ -1059,6 +1059,17 @@ void PEFile::ForAllSections( std::function <void ( PESection* )> cb )
     LIST_FOREACH_END
 }
 
+void PEFile::ForAllSections( std::function <void ( const PESection* )> cb ) const
+{
+    LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
+
+        const PESection *constSect = item;
+
+        cb( constSect );
+
+    LIST_FOREACH_END
+}
+
 bool PEFile::HasRelocationInfo( void ) const
 {
     // Check any sections.

@@ -1353,6 +1353,7 @@ public:
     bool FindSectionSpace( std::uint32_t spanSize, std::uint32_t& addrOut );
 
     void ForAllSections( std::function <void ( PESection* )> cb );
+    void ForAllSections( std::function <void ( const PESection* )> cb ) const;
 
     // More advanced helpers.
     PESectionDataReference ResolveRVAToRef( std::uint32_t rva )     { return this->sections.ResolveRVAToRef( rva ); }
