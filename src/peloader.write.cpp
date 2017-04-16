@@ -878,7 +878,7 @@ void PEFile::CommitDataDirectories( void )
                                 lnkEntry.DataIsDirectory = ( itemType == PEResourceItem::eType::DIRECTORY );
                                 lnkEntry.OffsetToDirectory = ( childAllocInfo.entry_off );
 
-                                const std::uint32_t lnkEntryOff = ( linkWriteOff + writeIndex * sizeof(lnkEntry) );
+                                const std::uint32_t lnkEntryOff = (std::uint32_t)( linkWriteOff + writeIndex * sizeof(lnkEntry) );
 
                                 writeBuf.WriteToSection( &lnkEntry, sizeof(lnkEntry), lnkEntryOff );
 
@@ -930,7 +930,7 @@ void PEFile::CommitDataDirectories( void )
                                 lnkEntry.DataIsDirectory = ( itemType == PEResourceItem::eType::DIRECTORY );
                                 lnkEntry.OffsetToDirectory = ( childAllocInfo.entry_off );
 
-                                const std::uint32_t lnkEntryOff = ( linkWriteOff + writeIndex * sizeof(lnkEntry) );
+                                const std::uint32_t lnkEntryOff = (std::uint32_t)( linkWriteOff + writeIndex * sizeof(lnkEntry) );
 
                                 writeBuf.WriteToSection( &lnkEntry, sizeof(lnkEntry), lnkEntryOff );
 
