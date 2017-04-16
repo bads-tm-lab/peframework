@@ -1402,15 +1402,30 @@ public:
             PESectionDataReference expRef;  // only valid if not a forwarder.
             std::string forwarder;
             bool isForwarder;
-            
-            // Optional fields.
-            std::string name;       // is valid if not empty
-            bool isNamed;
-            PESectionAllocation nameAllocEntry;
+
             // definition of ordinal: index into function array.
             // thus it is given implicitly.
         };
         std::vector <func> functions;
+
+        // Name map.
+        struct mappedName
+        {
+            std::string name;
+            mutable PESectionAllocation nameAllocEntry;
+
+            inline bool operator < ( const mappedName& right ) const
+            {
+                return ( this->name < right.name );
+            }
+        };
+        std::map <mappedName, size_t> funcNameMap;
+
+        // Helper API.
+        // (all ordinals have to be local to this image ordinal base)
+        std::uint32_t AddExport( func&& entryToTakeOver );
+        void MapName( std::uint32_t ordinal, const char *name );
+        void RemoveExport( std::uint32_t ordinal );
 
         PESectionAllocation funcAddressAllocEntry;
         PESectionAllocation funcNamesAllocEntry;

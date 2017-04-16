@@ -790,8 +790,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             expInfo.minorVersion = expEntry.MinorVersion;
             expInfo.ordinalBase = expEntry.Base;
 
-            size_t ordinalBase = ( expInfo.ordinalBase - 1 );
-
             // Read the name.
             PESection *sectOfName;
             {
@@ -847,53 +845,63 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 for ( std::uint32_t n = 0; n < expEntry.NumberOfFunctions; n++ )
                 {
                     PEExportDir::func fentry;
-                    fentry.isNamed = false; // by default no export is named.
+                    // by default no export is named.
 
                     bool isForwarder;
                     {
                         std::uint32_t ptr;
                         addrPtrStream.Read( &ptr, sizeof(ptr) );
 
-                        // Determine if we are a forwarder or an export.
+                        // We could be an empty entry.
+                        // (encountered in system DLLs)
+                        if ( ptr != 0 )
                         {
-                            typedef sliceOfData <std::uint32_t> rvaSlice_t;
-
-                            rvaSlice_t requestSlice( ptr, 1 );
-
-                            rvaSlice_t expDirSlice( expDirEntry.VirtualAddress, expDirEntry.Size );
-
-                            rvaSlice_t::eIntersectionResult intResult = requestSlice.intersectWith( expDirSlice );
-
-                            isForwarder = ( rvaSlice_t::isFloatingIntersect( intResult ) == false );
-                        }
-
-                        // Store properties according to the type.
-                        PESection *exportOffPtrSect;
-                        PEDataStream expOffStream;
-                        {
-                            bool gotStream = sections.GetPEDataStream( ptr, expOffStream, &exportOffPtrSect );
-
-                            if ( !gotStream )
+                            // Determine if we are a forwarder or an export.
                             {
-                                throw peframework_exception(
-                                    ePEExceptCode::CORRUPT_PE_STRUCTURE,
-                                    "failed to get PE export offset pointer"
-                                );
+                                typedef sliceOfData <std::uint32_t> rvaSlice_t;
+
+                                rvaSlice_t requestSlice( ptr, 1 );
+
+                                rvaSlice_t expDirSlice( expDirEntry.VirtualAddress, expDirEntry.Size );
+
+                                rvaSlice_t::eIntersectionResult intResult = requestSlice.intersectWith( expDirSlice );
+
+                                isForwarder = ( rvaSlice_t::isFloatingIntersect( intResult ) == false );
+                            }
+
+                            // Store properties according to the type.
+                            PESection *exportOffPtrSect;
+                            PEDataStream expOffStream;
+                            {
+                                bool gotStream = sections.GetPEDataStream( ptr, expOffStream, &exportOffPtrSect );
+
+                                if ( !gotStream )
+                                {
+                                    throw peframework_exception(
+                                        ePEExceptCode::CORRUPT_PE_STRUCTURE,
+                                        "failed to get PE export offset pointer"
+                                    );
+                                }
+                            }
+
+                            // We store the location of the data entry, but NOTE that
+                            // this behavior NEVER is an allocation!
+                            if ( !isForwarder ) // we need to know nothing about forwarders.
+                            {
+                                std::uint32_t offStore = ( ptr - exportOffPtrSect->GetVirtualAddress() );
+
+                                fentry.expRef = PESectionDataReference( exportOffPtrSect, offStore );
+                            }
+                            // Otherwise read the forwarder entry.
+                            else
+                            {
+                                ReadPEString( expOffStream, fentry.forwarder );
                             }
                         }
-
-                        // We store the location of the data entry, but NOTE that
-                        // this behavior NEVER is an allocation!
-                        if ( !isForwarder ) // we need to know nothing about forwarders.
-                        {
-                            std::uint32_t offStore = ( ptr - exportOffPtrSect->GetVirtualAddress() );
-
-                            fentry.expRef = PESectionDataReference( exportOffPtrSect, offStore );
-                        }
-                        // Otherwise read the forwarder entry.
                         else
                         {
-                            ReadPEString( expOffStream, fentry.forwarder );
+                            // Empty settings.
+                            isForwarder = false;
                         }
                     }
                     fentry.isForwarder = isForwarder;
@@ -945,7 +953,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         addrNameOrdStream.Read( &ordinal, sizeof(ordinal) );
 
                         // Get the index to map the function name to (== ordinal).
-                        size_t mapIndex = ( ordinal - ordinalBase );
+                        size_t mapIndex = ( ordinal );
 
                         if ( mapIndex >= funcs.size() )
                         {
@@ -976,6 +984,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                             }
                         }
 
+                        // Check some kind of sense behind the name.
                         if ( realName.empty() )
                         {
                             // Kind of invalid.
@@ -985,22 +994,13 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                             );
                         }
 
-                        PEExportDir::func& fentry = funcs[ mapIndex ];
+                        // Store this link.
+                        PEExportDir::mappedName nameMap;
+                        nameMap.name = std::move( realName );
+                        
+                        realNamePtrSect->SetPlacedMemory( nameMap.nameAllocEntry, namePtrRVA );
 
-                        // Check for ambiguous name mappings.
-                        // TODO: this is actually allowed and is called "alias"; pretty evil.
-                        if ( fentry.isNamed )
-                        {
-                            throw peframework_exception(
-                                ePEExceptCode::UNSUPPORTED,
-                                "ambiguous PE export name mapping"
-                            );
-                        }
-
-                        fentry.name = std::move( realName );
-                        fentry.isNamed = true;  // yes, we have a valid name!
-
-                        realNamePtrSect->SetPlacedMemory( fentry.nameAllocEntry, namePtrRVA );
+                        expInfo.funcNameMap.insert( std::make_pair( std::move( nameMap ), std::move( mapIndex ) ) );
                     }
                 }
 

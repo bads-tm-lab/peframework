@@ -376,36 +376,31 @@ void PEFile::CommitDataDirectories( void )
             if ( expDir.chars != 0 || expDir.name.empty() == false || expDir.functions.empty() == false )
             {
                 // Commit all export directory name entries.
-                const std::uint32_t numExportEntries = (std::uint32_t)expDir.functions.size();
 
                 // Determine if we need to allocate a function name mapping.
-                std::uint32_t numNamedEntries = 0;
+                std::uint32_t numNamedEntries = (std::uint32_t)expDir.funcNameMap.size();
 
-                for ( size_t n = 0; n < numExportEntries; n++ )
+                for ( auto& nameMapIter : expDir.funcNameMap )
                 {
-                    PEExportDir::func& funcEntry = expDir.functions[ n ];
+                    const PEExportDir::mappedName& nameMap = nameMapIter.first;
 
-                    // Are we a named entry? If yes we will need a mapping.
-                    if ( funcEntry.isNamed )
+                    // Make sure we wrote the name into PE virtual memory.
+                    if ( !nameMap.nameAllocEntry.IsAllocated() )
                     {
-                        if ( !funcEntry.nameAllocEntry.IsAllocated() )
-                        {
-                            // Allocate an entry for the name.
-                            const std::uint32_t strSize = (std::uint32_t)( funcEntry.name.size() + 1 );
+                        // Allocate an entry for the name.
+                        const std::uint32_t strSize = (std::uint32_t)( nameMap.name.size() + 1 );
                     
-                            PESectionAllocation nameAllocEntry;
-                            rdonlySect.Allocate( nameAllocEntry, strSize, 1 );
+                        PESectionAllocation nameAllocEntry;
+                        rdonlySect.Allocate( nameAllocEntry, strSize, 1 );
 
-                            nameAllocEntry.WriteToSection( funcEntry.name.c_str(), strSize );
+                        nameAllocEntry.WriteToSection( nameMap.name.c_str(), strSize );
 
-                            // Remember the completed data.
-                            funcEntry.nameAllocEntry = std::move( nameAllocEntry );
-                        }
-
-                        // We definately need a name-ordinal map.
-                        numNamedEntries++;
+                        // Remember the completed data.
+                        nameMap.nameAllocEntry = std::move( nameAllocEntry );
                     }
                 }
+
+                const std::uint32_t numExportEntries = (std::uint32_t)expDir.functions.size();
 
                 // Commit the export module name.
                 if ( !expDir.nameAllocEntry.IsAllocated() )
@@ -534,20 +529,20 @@ void PEFile::CommitDataDirectories( void )
 
                         std::uint32_t index = 0;
 
-                        for ( auto& keyIter : allocInfos )
+                        for ( const auto& nameMapIter : expDir.funcNameMap )
                         {
-                            size_t funcIndex = keyIter.first;
+                            size_t funcIndex = nameMapIter.second;
 
                             // Write the name.
-                            PEExportDir::func& funcInfo = expDir.functions[ funcIndex ];
-
                             std::uint16_t ordinal = (std::uint16_t)funcIndex;
 
                             // Write this name map entry.
+                            const PEExportDir::mappedName& nameMap = nameMapIter.first;
+
                             const std::uint32_t namePtrOff = ( sizeof(std::uint32_t) * index );
                             const std::uint32_t ordOff = ( sizeof(std::uint16_t) * index );
 
-                            namePtrTableAlloc.RegisterTargetRVA( namePtrOff, funcInfo.nameAllocEntry );
+                            namePtrTableAlloc.RegisterTargetRVA( namePtrOff, nameMap.nameAllocEntry );
                             ordMapTableAlloc.WriteToSection( &ordinal, sizeof(ordinal), ordOff );
 
                             index++;
