@@ -659,6 +659,12 @@ public:
                 return ( theSection != NULL );
             }
 
+            // We can spawn a data reference from any allocation.
+            inline operator PESectionDataReference ( void )
+            {
+                return PESectionDataReference( this->theSection, this->sectOffset, this->dataSize );
+            }
+
             // Every allocation can ONLY exist on ONE section.
 
             sectionSpaceAlloc_t::block_t sectionBlock;
