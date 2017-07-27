@@ -1,3 +1,4 @@
+CC := g++
 srcdir := $(CURDIR)/../src
 objdir := $(CURDIR)/../obj/linux
 sources := $(wildcard $(srcdir)/**.cpp)
@@ -9,10 +10,10 @@ INCLUDE := \
     -I$(CURDIR)/../include/ \
 
 main : $(objects) $(headers) ; mkdir -p ../lib/linux/ ; \
-    $(LIBMAKE) rcs ../lib/linux/peframework.a $(objects)
+    $(LIBMAKE) rcs ../lib/linux/libpeframework.a $(objects)
 
 $(objdir)/%.o : $(srcdir)/%.cpp ; \
     mkdir -p $(dir $@) ; \
-    cc -o $(objdir)/$(patsubst $(objdir)/%.o,%.o,$@) -c $< -Wno-invalid-offsetof $(INCLUDE) ;
+    $(CC) -o $(objdir)/$(patsubst $(objdir)/%.o,%.o,$@) -c $< -Wno-invalid-offsetof $(INCLUDE) ;
 
 print-%: ; @echo '$*=$($*)'
