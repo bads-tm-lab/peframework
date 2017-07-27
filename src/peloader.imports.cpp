@@ -1,10 +1,16 @@
 #include "peloader.h"
 
+#include <sdk/UniChar.h>
+
 PEFile::PEImportDesc* PEFile::FindImportDescriptor( const char *moduleName )
 {
     for ( PEImportDesc& impDesc : this->imports )
     {
-        if ( stricmp( moduleName, impDesc.DLLName.c_str() ) == 0 )
+        if ( UniversalCompareStrings(
+                moduleName, strlen(moduleName),
+                impDesc.DLLName.c_str(), impDesc.DLLName.size(),
+                false
+             ) )
         {
             return &impDesc;
         }

@@ -673,7 +673,7 @@ public:
 
             // Write helpers for native numbers.
 #define PESECT_WRITEHELPER( typeName, type ) \
-            inline void Write##typeName##( type value, std::int32_t dataOff = 0 ) \
+            inline void Write##typeName( type value, std::int32_t dataOff = 0 ) \
             { \
                 this->WriteToSection( &value, sizeof(value), dataOff ); \
             }
@@ -1582,7 +1582,7 @@ public:
         }
 
         template <typename callbackType>
-        inline void ForAllChildren( callbackType& cb ) const
+        inline void ForAllChildren( const callbackType& cb ) const
         {
             for ( const PEResourceItem *childItem : this->namedChildren )
             {
@@ -1699,7 +1699,7 @@ public:
         struct item
         {
             std::uint16_t offset : 12;
-            eRelocType type : 4;
+            std::uint16_t type : 4;     // had to change this away from enum because GCC is being a bitch
         };
         static_assert( sizeof(item) == sizeof(std::uint16_t), "invalid item size" );
 

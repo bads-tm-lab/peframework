@@ -1,6 +1,10 @@
 #ifndef _PEFRAMEWORK_STREAM_
 #define _PEFRAMEWORK_STREAM_
 
+#include <cstddef>
+
+#include <sdk/MacroUtils.h>
+
 typedef long long pe_file_ptr_t;
 
 struct PEStream abstract

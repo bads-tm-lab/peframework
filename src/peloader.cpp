@@ -1,5 +1,7 @@
 #include "peframework.h"
 
+#include <vector>
+
 #include "peloader.internal.hxx"
 
 PEFile::PEFile( void ) : resourceRoot( false, std::u16string(), 0 ), sections( 0x1000, 0x10000 )
@@ -777,7 +779,7 @@ PEFile::PESection* PEFile::PESectionMan::AddSection( PESection&& theSection )
     if ( !foundSpace )
     {
         // In very critical scenarios the executable may be full!
-        return false;
+        return NULL;
     }
 
     // We need to move the section into memory we control.

@@ -139,23 +139,12 @@
     <Natvis Include="peloader.natvis" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\peloader.basereloc.cpp" />
-    <ClCompile Include="..\src\peloader.cpp" />
-    <ClCompile Include="..\src\peloader.debug.cpp" />
-    <ClCompile Include="..\src\peloader.exports.cpp" />
-    <ClCompile Include="..\src\peloader.imports.cpp" />
-    <ClCompile Include="..\src\peloader.read.cpp" />
-    <ClCompile Include="..\src\peloader.resource.cpp" />
-    <ClCompile Include="..\src\peloader.write.cpp" />
+    <ClCompile Include="..\src\**\*.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\include\peexcept.h" />
-    <ClInclude Include="..\include\peframework.h" />
-    <ClInclude Include="..\include\peloader.common.h" />
-    <ClInclude Include="..\include\peloader.h" />
-    <ClInclude Include="..\include\peloader.serialize.h" />
-    <ClInclude Include="..\include\pestream.h" />
-    <ClInclude Include="..\src\peloader.internal.hxx" />
+    <ClInclude Include="..\include\**\*.h" />
+    <ClInclude Include="..\src\**\*.h" />
+    <ClInclude Include="..\src\**\*.hxx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

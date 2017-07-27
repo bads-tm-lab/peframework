@@ -203,7 +203,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
         // Verify DOS header (light).
         bool isValidDOSHeader =
-            ( dosHeader.e_magic == 'ZM' );
+            ( dosHeader.e_magic == PEL_IMAGE_DOS_SIGNATURE );
 
         if ( !isValidDOSHeader )
         {
@@ -288,7 +288,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         }
 
         // Validate some things.
-        if ( peHeader.Signature != 'EP' )
+        if ( peHeader.Signature != PEL_IMAGE_PE_HEADER_SIGNATURE )
         {
             throw peframework_exception(
                 ePEExceptCode::CORRUPT_PE_STRUCTURE,
@@ -392,7 +392,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
         std::uint32_t numberOfDataDirs;
 
-        if ( headerMagic == 0x020B )
+        if ( headerMagic == PEL_IMAGE_NT_OPTIONAL_HDR64_MAGIC )
         {
             // We are a PE32+ file.
             isExtendedFormat = true;
@@ -460,7 +460,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             // Decrease remaining size.
             optHeaderSizeRemain -= sizeof(optHeaderType);
         }
-        else if ( headerMagic == 0x010B )
+        else if ( headerMagic == PEL_IMAGE_NT_OPTIONAL_HDR32_MAGIC )
         {
             // We are a plain PE32 file.
             isExtendedFormat = false;
@@ -551,7 +551,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
         // After the optional header main information we find the data directories.
         // Just read them and zero out the remaining ones which we do not have available.
-        std::uint32_t canReadEntries = std::min( (std::uint32_t)_countof(dataDirs), numberOfDataDirs );
+        std::uint32_t canReadEntries = std::min( (std::uint32_t)countof(dataDirs), numberOfDataDirs );
 
         if ( canReadEntries > 0 )
         {
@@ -583,7 +583,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         }
 
         // If we read less entries than we support then we have to zero out the remaining ones.
-        std::uint32_t remEntryCount = ( _countof(dataDirs) - canReadEntries );
+        std::uint32_t remEntryCount = ( countof(dataDirs) - canReadEntries );
 
         if ( remEntryCount > 0 )
         {
@@ -630,7 +630,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         pe_file_ptr_t sectHeaderOff = peStream->Tell();
 
         PESection section;
-        section.shortName = std::string( (const char*)sectHeader.Name, strnlen( (const char*)sectHeader.Name, _countof(sectHeader.Name) ) );
+        section.shortName = std::string( (const char*)sectHeader.Name, strnlen( (const char*)sectHeader.Name, countof(sectHeader.Name) ) );
         section.SetPlacementInfo( sectHeader.VirtualAddress, sectHeader.Misc.VirtualSize );
         
         // Save characteristics flags.
@@ -1481,7 +1481,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                         PEBaseReloc::item itemInfo;
                         itemInfo.offset = reloc.offset;
-                        itemInfo.type = (PEBaseReloc::eRelocType)reloc.type;
+                        itemInfo.type = reloc.type;
 
                         info.items.push_back( std::move( itemInfo ) );
 

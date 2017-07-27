@@ -103,10 +103,25 @@ struct item_allocInfo
 {
     inline item_allocInfo( void )
     {
+        entry_off = 0;
+        name_off = 0;
         dataitem_off = 0;
     }
     inline item_allocInfo( const item_allocInfo& right ) = delete;
     inline item_allocInfo( item_allocInfo&& right ) = default;
+
+    inline ~item_allocInfo( void )
+    {
+        // Delete all possible child entries.
+        for ( const auto& pairItem : this->children )
+        {
+            item_allocInfo *childItem = pairItem.second;
+
+            delete childItem;
+        }
+
+        this->children.clear();
+    }
 
     inline item_allocInfo& operator = ( const item_allocInfo& right ) = delete;
     inline item_allocInfo& operator = ( item_allocInfo&& right ) = default;
@@ -116,21 +131,21 @@ struct item_allocInfo
     std::uint32_t name_off;         // Offset to the name string (unicode); only valid if child
     std::uint32_t dataitem_off;     // Offset to the resource data item info; only valid if leaf
 
-    std::unordered_map <const PEFile::PEResourceItem*, item_allocInfo> children;
+    std::unordered_map <const PEFile::PEResourceItem*, item_allocInfo*> children;
 };
 
 template <typename callbackType>
-static AINLINE void ForAllResourceItems( const PEFile::PEResourceDir& resDir, item_allocInfo& allocItem, callbackType& cb )
+static AINLINE void ForAllResourceItems( const PEFile::PEResourceDir& resDir, item_allocInfo& allocItem, const callbackType& cb )
 {
     // Named children.
     resDir.ForAllChildren(
         [&]( const PEFile::PEResourceItem *childItem, bool hasIdentiferName )
     {
-        auto& childAllocItemNode = allocItem.children.find( childItem );
+        const auto& childAllocItemNode = allocItem.children.find( childItem );
 
         assert( childAllocItemNode != allocItem.children.end() );
 
-        item_allocInfo& childAllocItem = childAllocItemNode->second;
+        item_allocInfo& childAllocItem = *childAllocItemNode->second;
 
         // Execute for us.
         cb( childItem, childAllocItem );
@@ -689,8 +704,22 @@ void PEFile::CommitDataDirectories( void )
                                     // We allocate name strings later.
                                     childAlloc.name_off = 0;
 
-                                    // Register this child alloc item.
-                                    infoOut.children.insert( std::make_pair( childItem, std::move( childAlloc ) ) );
+                                    // Create a memory copy of it.
+                                    item_allocInfo *memChildAlloc = new item_allocInfo( std::move( childAlloc ) );
+
+                                    assert( memChildAlloc != NULL );
+
+                                    try
+                                    {
+                                        // Register this child alloc item.
+                                        infoOut.children.insert( std::make_pair( childItem, memChildAlloc ) );
+                                    }
+                                    catch( ... )
+                                    {
+                                        delete memChildAlloc;
+
+                                        throw;
+                                    }
                                 }
 
                                 // Now allocate all ID based entries.
@@ -703,7 +732,21 @@ void PEFile::CommitDataDirectories( void )
                                     // Not named.
                                     childAlloc.name_off = 0;
 
-                                    infoOut.children.insert( std::make_pair( childItem, std::move( childAlloc ) ) );
+                                    // Create a memory item.
+                                    item_allocInfo *memChildAlloc = new item_allocInfo( std::move( childAlloc ) );
+
+                                    assert( memChildAlloc != NULL );
+
+                                    try
+                                    {
+                                        infoOut.children.insert( std::make_pair( childItem, memChildAlloc ) );
+                                    }
+                                    catch( ... )
+                                    {
+                                        delete memChildAlloc;
+
+                                        throw;
+                                    }
                                 }
                             }
                             else if ( itemType == PEResourceItem::eType::DATA )
@@ -843,11 +886,11 @@ void PEFile::CommitDataDirectories( void )
 
                             for ( const PEResourceItem *childItem : writeNode.namedChildren )
                             {
-                                auto& childAllocInfoNode = allocNode.children.find( childItem );
+                                const auto& childAllocInfoNode = allocNode.children.find( childItem );
 
                                 assert( childAllocInfoNode != allocNode.children.end() );
 
-                                const item_allocInfo& childAllocInfo = childAllocInfoNode->second;
+                                const item_allocInfo& childAllocInfo = *childAllocInfoNode->second;
 
                                 // We write a link entry for this child.
                                 PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY lnkEntry = { 0 };
@@ -907,11 +950,11 @@ void PEFile::CommitDataDirectories( void )
                             // Now all ID ones.
                             for ( const PEResourceItem *childItem : writeNode.idChildren )
                             {
-                                auto& childAllocInfoNode = allocNode.children.find( childItem );
+                                const auto& childAllocInfoNode = allocNode.children.find( childItem );
 
                                 assert( childAllocInfoNode != allocNode.children.end() );
 
-                                const item_allocInfo& childAllocInfo = childAllocInfoNode->second;
+                                const item_allocInfo& childAllocInfo = *childAllocInfoNode->second;
 
                                 // We write a link entry for this child.
                                 PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY lnkEntry = { 0 };
@@ -1612,7 +1655,7 @@ void PEFile::WriteToStream( PEStream *peStream )
     allocMan.AllocateAt( 0, sizeof( PEStructures::IMAGE_DOS_HEADER ) + (std::uint32_t)this->dos_data.progData.size() );
 
     PEStructures::IMAGE_DOS_HEADER dos_header;
-    dos_header.e_magic = 'ZM';
+    dos_header.e_magic = PEL_IMAGE_DOS_SIGNATURE;
     dos_header.e_cblp = this->dos_data.cblp;
     dos_header.e_cp = this->dos_data.cp;
     dos_header.e_crlc = this->dos_data.crlc;
@@ -1671,7 +1714,7 @@ void PEFile::WriteToStream( PEStream *peStream )
         const std::uint32_t dosAllocSize = ( peDataPos );
 
         PEStructures::IMAGE_PE_HEADER pe_data;
-        pe_data.Signature = 'EP';
+        pe_data.Signature = PEL_IMAGE_PE_HEADER_SIGNATURE;
         pe_data.FileHeader.Machine = this->pe_finfo.machine_id;
         pe_data.FileHeader.NumberOfSections = (std::uint16_t)this->sections.numSections;
         pe_data.FileHeader.TimeDateStamp = this->pe_finfo.timeDateStamp;
@@ -1723,7 +1766,7 @@ void PEFile::WriteToStream( PEStream *peStream )
                 }
 
                 PEStructures::IMAGE_SECTION_HEADER header;
-                strncpy( (char*)header.Name, item->shortName.c_str(), _countof(header.Name) );
+                strncpy( (char*)header.Name, item->shortName.c_str(), countof(header.Name) );
                 header.VirtualAddress = sectVirtAddr;
                 header.Misc.VirtualSize = allocVirtualSize;
                 header.SizeOfRawData = rawDataSize;
@@ -2021,7 +2064,7 @@ void PEFile::WriteToStream( PEStream *peStream )
             optHeader.SizeOfHeapReserve = this->peOptHeader.sizeOfHeapReserve;
             optHeader.SizeOfHeapCommit = this->peOptHeader.sizeOfHeapCommit;
             optHeader.LoaderFlags = this->peOptHeader.loaderFlags;
-            optHeader.NumberOfRvaAndSizes = _countof(peDataDirs);
+            optHeader.NumberOfRvaAndSizes = countof(peDataDirs);
             memcpy( headerData.dataDirs, peDataDirs, sizeof( peDataDirs ) );
 
             PEWrite( peStream, peOptHeaderOffset, sizeof(headerData), &headerData );
@@ -2068,7 +2111,7 @@ void PEFile::WriteToStream( PEStream *peStream )
             optHeader.SizeOfHeapReserve = (std::uint32_t)this->peOptHeader.sizeOfHeapReserve;
             optHeader.SizeOfHeapCommit = (std::uint32_t)this->peOptHeader.sizeOfHeapCommit;
             optHeader.LoaderFlags = this->peOptHeader.loaderFlags;
-            optHeader.NumberOfRvaAndSizes = _countof(peDataDirs);
+            optHeader.NumberOfRvaAndSizes = countof(peDataDirs);
             memcpy( headerData.dataDirs, peDataDirs, sizeof( peDataDirs ) );
 
             PEWrite( peStream, peOptHeaderOffset, sizeof(headerData), &headerData );

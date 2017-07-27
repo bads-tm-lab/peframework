@@ -12,6 +12,7 @@ namespace PEStructures
 {
 
 // Main PE headers.
+#define PEL_IMAGE_DOS_SIGNATURE         0x5A4D
 
 struct IMAGE_DOS_HEADER      // DOS .EXE header
 {
@@ -136,6 +137,8 @@ struct IMAGE_FILE_HEADER
 #define PEL_IMAGE_SCN_MEM_READ                   0x40000000  // Section is readable.
 #define PEL_IMAGE_SCN_MEM_WRITE                  0x80000000  // Section is writeable.
 
+#define PEL_IMAGE_PE_HEADER_SIGNATURE       0x4550
+
 struct IMAGE_PE_HEADER
 {
     std::uint32_t Signature;
@@ -150,6 +153,9 @@ struct IMAGE_DATA_DIRECTORY
 };
 
 #define PEL_IMAGE_NUMBEROF_DIRECTORY_ENTRIES    16
+
+#define PEL_IMAGE_NT_OPTIONAL_HDR32_MAGIC       0x010B
+#define PEL_IMAGE_NT_OPTIONAL_HDR64_MAGIC       0x020B
 
 #pragma pack(1)
 struct IMAGE_OPTIONAL_HEADER32

@@ -32,7 +32,7 @@ void PEFile::AddRelocation( std::uint32_t rva, PEBaseReloc::eRelocType relocType
     std::uint32_t insideChunkOff = ( rva % baserelocChunkSize );
 
     PEBaseReloc::item newItem;
-    newItem.type = relocType;
+    newItem.type = (std::uint16_t)relocType;
     newItem.offset = insideChunkOff;
 
     relocDict.items.push_back( std::move( newItem ) );
