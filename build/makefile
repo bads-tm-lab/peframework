@@ -14,7 +14,7 @@ main : $(objects) $(headers) ; mkdir -p ../lib/linux/ ; \
 
 $(objdir)/%.o : $(srcdir)/% ; \
     mkdir -p $(dir $@) ; \
-    $(CC) -O3 -o $(objdir)/$(patsubst $(objdir)/%.o,%.o,$@) -c $< -Wno-invalid-offsetof $(INCLUDE) ;
+    $(CC) -O3 -o $@ -c $< -Wno-invalid-offsetof $(INCLUDE) ;
 
 clean : ; \
     rm -rf $(objdir)
