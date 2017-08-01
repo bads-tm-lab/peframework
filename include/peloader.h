@@ -1420,12 +1420,45 @@ public:
             std::string name;
             mutable PESectionAllocation nameAllocEntry;
 
+            inline bool operator < ( const std::string& right ) const
+            {
+                return ( this->name < right );
+            }
+
             inline bool operator < ( const mappedName& right ) const
             {
-                return ( this->name < right.name );
+                return operator < ( right.name );
             }
         };
-        std::map <mappedName, size_t> funcNameMap;
+
+    private:
+        struct _funcNameMapComparator
+        {
+            inline bool operator()( const mappedName& left, const mappedName& right ) const
+            {
+                return operator() ( left.name, right.name );
+            }
+
+            inline bool operator()( const mappedName& left, const std::string& right ) const
+            {
+                return operator() ( left.name, right );
+            }
+
+            inline bool operator()( const std::string& left, const mappedName& right ) const
+            {
+                return operator() ( left, right.name );
+            }
+
+            inline bool operator()( const std::string& left, const std::string& right ) const
+            {
+                return ( left < right );
+            }
+
+            typedef std::string is_transparent;
+        };
+
+    public:
+        std::map <mappedName, size_t, _funcNameMapComparator> funcNameMap;
 
         // Helper API.
         // (all ordinals have to be local to this image ordinal base)
@@ -1695,6 +1728,20 @@ public:
             MACHINE_9,
             DIR64
         };
+
+        static inline eRelocType GetRelocTypeForPointerSize( size_t pointerSize )
+        {
+            if ( pointerSize == 4 )
+            {
+                return eRelocType::HIGHLOW;
+            }
+            else if ( pointerSize == 8 )
+            {
+                return eRelocType::DIR64;
+            }
+
+            return eRelocType::ABSOLUTE;
+        }
 
         struct item
         {
