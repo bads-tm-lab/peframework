@@ -1466,6 +1466,8 @@ public:
         void MapName( std::uint32_t ordinal, const char *name );
         void RemoveExport( std::uint32_t ordinal );
 
+        func* ResolveExport( bool isOrdinal, std::uint32_t ordinal, const std::string& name );
+
         PESectionAllocation funcAddressAllocEntry;
         PESectionAllocation funcNamesAllocEntry;
         PESectionAllocation funcOrdinalsAllocEntry;

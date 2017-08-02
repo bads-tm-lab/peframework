@@ -58,3 +58,42 @@ void PEFile::PEExportDir::RemoveExport( std::uint32_t ordinal )
         }
     }
 }
+
+static inline std::uint32_t ResolveExportOrdinal( const PEFile::PEExportDir& expDir, bool isOrdinal, std::uint32_t ordinal, const std::string& name, bool& hasOrdinal )
+{
+    if ( isOrdinal )
+    {
+        hasOrdinal = true;
+        // Need to subtract the ordinal base.
+        return ( ordinal - expDir.ordinalBase );
+    }
+
+    auto findIter = expDir.funcNameMap.find( name );
+
+    if ( findIter != expDir.funcNameMap.end() )
+    {
+        hasOrdinal = true;
+        // Internally we do not store with ordinal base offset.
+        return ( findIter->second );
+    }
+
+    return false;
+}
+
+PEFile::PEExportDir::func* PEFile::PEExportDir::ResolveExport( bool isOrdinal, std::uint32_t ordinal, const std::string& name )
+{
+    bool hasImportOrdinal = false;
+    size_t impOrdinal = ResolveExportOrdinal( *this, isOrdinal, ordinal, name, hasImportOrdinal );
+
+    if ( hasImportOrdinal && impOrdinal < this->functions.size() )
+    {
+        PEFile::PEExportDir::func& expFunc = this->functions[ impOrdinal ];
+
+        if ( expFunc.isForwarder == false )
+        {
+            return &expFunc;
+        }
+    }
+
+    return NULL;
+}
