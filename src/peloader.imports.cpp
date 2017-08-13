@@ -91,6 +91,7 @@ PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::CreateEquivalentImportsL
         PEFile::PEImportDesc::importFunc carbonCopy;
         carbonCopy.isOrdinalImport = impFunc.isOrdinalImport;
         carbonCopy.name = impFunc.name;
+        carbonCopy.nameAllocEntry = impFunc.nameAllocEntry.CloneOnlyFinal();
         carbonCopy.ordinal_hint = impFunc.ordinal_hint;
 
         newFuncs.push_back( std::move( carbonCopy ) );

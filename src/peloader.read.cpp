@@ -812,16 +812,8 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 std::vector <PEExportDir::func> funcs;
                 funcs.reserve( expEntry.NumberOfFunctions );
 
-                std::uint64_t tabSize;
-
-                if ( isExtendedFormat )
-                {
-                    tabSize = ( sizeof(std::uint64_t) * expEntry.NumberOfFunctions );
-                }
-                else
-                {
-                    tabSize = ( sizeof(std::uint32_t) * expEntry.NumberOfFunctions );
-                }
+                std::uint32_t archPointerSize = GetPEPointerSize( isExtendedFormat );
+                std::uint64_t tabSize = ( archPointerSize * expEntry.NumberOfFunctions );
                 
                 PESection *addrPtrSect;
                 PEDataStream addrPtrStream;
@@ -1041,7 +1033,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
             std::uint32_t n = 0;
 
-            while ( n++ < potentialNumDescriptors )
+            while ( n < potentialNumDescriptors )
             {
                 PEStructures::IMAGE_IMPORT_DESCRIPTOR importInfo;
                 importDescsStream.Read( &importInfo, sizeof(importInfo) );
@@ -1093,6 +1085,9 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                 // Store this import desc.
                 impDescs.push_back( std::move( impDesc ) );
+
+                // Next iteration.
+                n++;
 
                 // Done with this import desc!
             }
@@ -1972,7 +1967,27 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     dllNamePtrSect->SetPlacedMemory( desc.DLLName_allocEntry, DllNameRVA );
                 }
 
-                desc.DLLHandleRef = sections.ResolveRVAToRef( delayLoad.ModuleHandleRVA );
+                // Take over the memory location of the DLL handle.
+                {
+                    std::uint32_t archPointerSize = GetPEPointerSize( isExtendedFormat );
+
+                    std::uint32_t sectOff;
+                    PESection *handleSect;
+                    {
+                        bool gotLocation = sections.GetPEDataLocationEx( delayLoad.ModuleHandleRVA, archPointerSize, &sectOff, &handleSect );
+
+                        if ( !gotLocation )
+                        {
+                            throw peframework_exception(
+                                ePEExceptCode::CORRUPT_PE_STRUCTURE,
+                                "failed to read valid PE delay-load module handle allocation"
+                            );
+                        }
+                    }
+
+                    handleSect->SetPlacedMemoryInline( desc.DLLHandleAlloc, sectOff, archPointerSize );
+                }
+
                 desc.IATRef = sections.ResolveRVAToRef( delayLoad.ImportAddressTableRVA );
                 
                 if ( std::uint32_t importNamesRVA = delayLoad.ImportNameTableRVA )

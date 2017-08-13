@@ -343,6 +343,17 @@ void PEFile::PESectionAllocation::RegisterTargetRVA(
 
 void PEFile::PESection::SetPlacedMemory( PESectionAllocation& blockMeta, std::uint32_t allocOff, std::uint32_t allocSize )
 {
+    assert( allocOff >= this->virtualAddr );
+
+    this->SetPlacedMemoryInline(
+        blockMeta,
+        ( allocOff - this->virtualAddr ),
+        allocSize
+    );
+}
+
+void PEFile::PESection::SetPlacedMemoryInline( PESectionAllocation& blockMeta, std::uint32_t allocOff, std::uint32_t allocSize )
+{
     assert( this->isFinal == true );
     assert( this->ownerImage != NULL );
 
@@ -353,7 +364,7 @@ void PEFile::PESection::SetPlacedMemory( PESectionAllocation& blockMeta, std::ui
     {
         typedef sliceOfData <std::uint32_t> streamSlice_t;
 
-        streamSlice_t sectionSlice( this->virtualAddr, this->virtualSize );
+        streamSlice_t sectionSlice( 0, this->virtualSize );
         
         streamSlice_t reqSlice( allocOff, std::max( allocSize, 1u ) );
 
@@ -362,7 +373,7 @@ void PEFile::PESection::SetPlacedMemory( PESectionAllocation& blockMeta, std::ui
         assert( intResult == streamSlice_t::INTERSECT_INSIDE || intResult == streamSlice_t::INTERSECT_EQUAL );
     }
 
-    blockMeta.sectOffset = ( allocOff - this->virtualAddr );
+    blockMeta.sectOffset = allocOff;
     blockMeta.dataSize = allocSize;
     blockMeta.theSection = this;
 

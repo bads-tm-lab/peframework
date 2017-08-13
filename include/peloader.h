@@ -659,6 +659,26 @@ public:
                 return ( theSection != NULL );
             }
 
+            inline PESectionAllocation CloneOnlyFinal( void ) const
+            {
+                PESection *allocSect = this->theSection;
+
+                if ( allocSect == NULL )
+                {
+                    return PESectionAllocation();
+                }
+
+                if ( allocSect->IsFinal() == false )
+                {
+                    return PESectionAllocation();
+                }
+
+                PEFile::PESectionAllocation newAlloc;
+                allocSect->SetPlacedMemoryInline( newAlloc, this->sectOffset, this->dataSize );
+
+                return newAlloc;
+            }
+
             // We can spawn a data reference from any allocation.
             inline operator PESectionDataReference ( void )
             {
@@ -732,6 +752,7 @@ public:
         // Allocation methods.
         std::uint32_t Allocate( PESectionAllocation& blockMeta, std::uint32_t allocSize, std::uint32_t alignment = sizeof(std::uint32_t) );
         void SetPlacedMemory( PESectionAllocation& blockMeta, std::uint32_t allocOff, std::uint32_t allocSize = 0u );
+        void SetPlacedMemoryInline( PESectionAllocation& blockMeta, std::uint32_t allocOff, std::uint32_t allocSize = 0u );
 
         std::uint32_t ResolveRVA( std::uint32_t sectOffset ) const;
 
@@ -995,12 +1016,12 @@ private:
 
         // Function to get the section and the offset into it for a RVA.
         template <typename sectLocationProviderType>
-        inline bool GetPEDataLocationGeneric( const sectLocationProviderType& sectLocProv, std::uint32_t rvirtAddr, std::uint32_t *allocOffOut, PESection **allocSectOut = NULL, std::uint32_t *sectIndexOut = NULL ) const
+        inline bool GetPEDataLocationGeneric( const sectLocationProviderType& sectLocProv, std::uint32_t rvirtAddr, std::uint32_t rvirtSize, std::uint32_t *allocOffOut, PESection **allocSectOut = NULL, std::uint32_t *sectIndexOut = NULL ) const
         {
             typedef sliceOfData <std::uint32_t> memSlice_t;
 
             // Create a memory slice of the request.
-            memSlice_t requestRegion( rvirtAddr, 1 );
+            memSlice_t requestRegion( rvirtAddr, rvirtSize );
 
             std::uint32_t sectIndex = 0;
 
@@ -1065,7 +1086,14 @@ private:
         {
             mainSectLocProv locProv;
 
-            return GetPEDataLocationGeneric( locProv, rvirtAddr, allocOffOut, allocSectOut, sectIndexOut );
+            return GetPEDataLocationGeneric( locProv, rvirtAddr, 1, allocOffOut, allocSectOut, sectIndexOut );
+        }
+
+        inline bool GetPEDataLocationEx( std::uint32_t rvirtAddr, std::uint32_t rvirtSize, std::uint32_t *allocOffOut, PESection **allocSectOut = NULL, std::uint32_t *sectIndexOut = NULL ) const
+        {
+            mainSectLocProv locProv;
+
+            return GetPEDataLocationGeneric( locProv, rvirtAddr, rvirtSize, allocOffOut, allocSectOut, sectIndexOut );
         }
 
         // Function to get a data pointer of data directories.
@@ -1080,7 +1108,7 @@ private:
             std::uint32_t offsetIntoSect;
             PESection *allocSect;
 
-            bool gotLocation = GetPEDataLocationGeneric( sectLocProv, rvirtAddr, &offsetIntoSect, &allocSect );
+            bool gotLocation = GetPEDataLocationGeneric( sectLocProv, rvirtAddr, 1, &offsetIntoSect, &allocSect );
 
             if ( !gotLocation )
                 return false;
@@ -1917,7 +1945,7 @@ public:
         std::uint32_t attrib;
         std::string DLLName;
         PESectionAllocation DLLName_allocEntry;
-        PESectionDataReference DLLHandleRef;
+        PESectionAllocation DLLHandleAlloc;     // just storage (for the NT loader) in the size of a pointer
         PESectionDataReference IATRef;
         PEImportDesc::functions_t importNames;
         PESectionAllocation importNamesAllocEntry;

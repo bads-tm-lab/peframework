@@ -293,16 +293,7 @@ void PEFile::PEImportDesc::AllocatePEImportFunctionsData( PESection& writeSect, 
 PEFile::PESectionAllocation PEFile::PEImportDesc::WritePEImportFunctions( PESection& writeSect, const functions_t& functionList, bool isExtendedFormat )
 {
     // The size of an entry depends on PE32 or PE32+.
-    std::uint32_t entrySize;
-
-    if ( isExtendedFormat )
-    {
-        entrySize = sizeof(std::uint64_t);
-    }
-    else
-    {
-        entrySize = sizeof(std::uint32_t);
-    }
+    std::uint32_t entrySize = GetPEPointerSize( isExtendedFormat );
 
     std::uint32_t numFuncs = (std::uint32_t)functionList.size();
 
@@ -1382,6 +1373,14 @@ void PEFile::CommitDataDirectories( void )
                         delayDesc.DLLName_allocEntry = WriteZeroTermString( rdonlySect, delayDesc.DLLName );
                     }
 
+                    // Check if allocation for the DLL handle is required.
+                    if ( delayDesc.DLLHandleAlloc.IsAllocated() == false )
+                    {
+                        std::uint32_t entrySize = GetPEPointerSize( isExtendedFormat );
+
+                        dataSect.Allocate( delayDesc.DLLHandleAlloc, entrySize, entrySize );
+                    }
+
                     // Write the import names.
                     auto& funcs = delayDesc.importNames;
 
@@ -1422,7 +1421,8 @@ void PEFile::CommitDataDirectories( void )
                         nativeDesc.Attributes.AllAttributes = delayDesc.attrib;
                         nativeDesc.DllNameRVA = 0;
                         delayLoadsAlloc.RegisterTargetRVA( descWriteOff + offsetof(PEStructures::IMAGE_DELAYLOAD_DESCRIPTOR, DllNameRVA), delayDesc.DLLName_allocEntry );
-                        nativeDesc.ModuleHandleRVA = delayDesc.DLLHandleRef.GetRVA();
+                        nativeDesc.ModuleHandleRVA = 0;
+                        delayLoadsAlloc.RegisterTargetRVA( descWriteOff + offsetof(PEStructures::IMAGE_DELAYLOAD_DESCRIPTOR, ModuleHandleRVA), delayDesc.DLLHandleAlloc );
                         nativeDesc.ImportAddressTableRVA = delayDesc.IATRef.GetRVA();
                         nativeDesc.ImportNameTableRVA = 0;
                         delayLoadsAlloc.RegisterTargetRVA( descWriteOff + offsetof(PEStructures::IMAGE_DELAYLOAD_DESCRIPTOR, ImportNameTableRVA), delayDesc.importNamesAllocEntry );
