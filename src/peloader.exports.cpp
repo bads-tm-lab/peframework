@@ -21,7 +21,7 @@ void PEFile::PEExportDir::MapName( std::uint32_t ordinal, const char *name )
     mappedName newNameMap;
     newNameMap.name = name;
 
-    this->funcNameMap.insert( std::make_pair( std::move( newNameMap ), ordinal ) );
+    this->funcNameMap.insert( std::make_pair( std::move( newNameMap ), std::move( ordinal ) ) );
 
     // Need to recommit memory.
     this->allocEntry = PESectionAllocation();
@@ -74,7 +74,7 @@ static inline std::uint32_t ResolveExportOrdinal( const PEFile::PEExportDir& exp
     {
         hasOrdinal = true;
         // Internally we do not store with ordinal base offset.
-        return ( findIter->second );
+        return (std::uint32_t)( findIter->second );
     }
 
     return false;

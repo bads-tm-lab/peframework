@@ -1,4 +1,5 @@
 CC := g++
+CCFLAGS := -std=c++17
 srcdir := $(CURDIR)/../src
 objdir := $(CURDIR)/../obj/linux
 sources := $(shell find $(srcdir) -name "*.cpp")
@@ -14,7 +15,7 @@ main : $(objects) $(headers) ; mkdir -p ../lib/linux/ ; \
 
 $(objdir)/%.o : $(srcdir)/% ; \
     mkdir -p $(dir $@) ; \
-    $(CC) -O3 -o $@ -c $< -Wno-invalid-offsetof $(INCLUDE) ;
+    $(CC) $(CCFLAGS) -O3 -o $@ -c $< -Wno-invalid-offsetof $(INCLUDE) ;
 
 clean : ; \
     rm -rf $(objdir)
