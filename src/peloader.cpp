@@ -4,7 +4,7 @@
 
 #include "peloader.internal.hxx"
 
-PEFile::PEFile( void ) : resourceRoot( false, std::u16string(), 0 ), sections( 0x1000, 0x10000 )
+PEFile::PEFile( void ) : sections( 0x1000, 0x10000 ), resourceRoot( false, std::u16string(), 0 )
 {
     // By default we generate plain PE32+ files.
     // If true then PE32+ files are generated.
@@ -214,7 +214,7 @@ PEFile::PESection::~PESection( void )
     // * all active section data references
     {
         LIST_FOREACH_BEGIN( PESectionReference, this->dataRefList.root, sectionNode )
-        
+
             // Reset data fields to unlinked status
             // without clearing ties itself.
             item->clearLink();
@@ -365,7 +365,7 @@ void PEFile::PESection::SetPlacedMemoryInline( PESectionAllocation& blockMeta, s
         typedef sliceOfData <std::uint32_t> streamSlice_t;
 
         streamSlice_t sectionSlice( 0, this->virtualSize );
-        
+
         streamSlice_t reqSlice( allocOff, std::max( allocSize, 1u ) );
 
         streamSlice_t::eIntersectionResult intResult = reqSlice.intersectWith( sectionSlice );
@@ -423,7 +423,7 @@ void PEFile::PESection::PEPlacedOffset::WriteIntoData( PEFile *peImage, PESectio
     {
         // Calculate the absolute VA.
         std::uint32_t targetVA = 0;
-        
+
         if ( targetSect )
         {
             targetVA = ( (std::uint32_t)imageBase + targetSect->ResolveRVA( targetOff ) );
@@ -481,7 +481,7 @@ void PEFile::PESection::SetPENativeFlags( std::uint32_t schars )
     chars.sect_mem_16bit                = ( schars & PEL_IMAGE_SCN_MEM_16BIT ) != 0;
     chars.sect_mem_locked               = ( schars & PEL_IMAGE_SCN_MEM_LOCKED ) != 0;
     chars.sect_mem_preload              = ( schars & PEL_IMAGE_SCN_MEM_PRELOAD ) != 0;
-        
+
     // Parse the alignment information out of the chars.
     PESection::eAlignment alignNum = (PESection::eAlignment)( ( schars & 0x00F00000 ) >> 20 );
     chars.sect_alignment = alignNum;
@@ -675,7 +675,7 @@ void PEFile::PESection::Finalize( void )
 
     // The image does not have a virtualSize parameter yet.
     assert( this->virtualSize == 0 );
-    
+
     // It is created by taking the rawdata size.
     // The image will later round it to section alignment.
     this->virtualSize = ( (decltype(virtualSize))stream.Size() );
@@ -694,7 +694,7 @@ void PEFile::PESection::FinalizeProfound( std::uint32_t virtSize )
 
     // The image does not have a virtualSize parameter yet.
     assert( this->virtualSize == 0 );
-    
+
     // Ensure that the guy set a proper virtual size.
     // If not then we are in trouble.
     std::uint32_t atLeastVirtSize = ( (std::uint32_t)stream.Size() );
@@ -706,7 +706,7 @@ void PEFile::PESection::FinalizeProfound( std::uint32_t virtSize )
             "invalid virtual size in profound section finalization"
         );
     }
-    
+
     // Store the user-given value.
     // We assume that it is aligned properly.
     this->virtualSize = virtSize;
@@ -881,7 +881,7 @@ bool PEFile::PESectionMan::FindSectionSpace( std::uint32_t spanSize, std::uint32
     sectAllocSemantics::allocInfo allocInfo;
 
     bool foundSpace = sectAllocSemantics::FindSpace( sectVirtualAllocMan, alignedSectionSize, allocInfo, sectionAlignment, imageBase );
-    
+
     if ( !foundSpace )
     {
         return false;
@@ -905,7 +905,7 @@ void PEFile::PEFileSpaceData::ClearData( void )
     {
         assert( this->storageType == eStorageType::NONE );
     }
-        
+
     this->storageType = eStorageType::NONE;
 }
 
@@ -1019,7 +1019,7 @@ PEFile::PESection* PEFile::FindFirstSectionByName( const char *name )
 
         if ( item->shortName == name )
             return item;
-    
+
     LIST_FOREACH_END
 
     return NULL;
@@ -1028,10 +1028,10 @@ PEFile::PESection* PEFile::FindFirstSectionByName( const char *name )
 PEFile::PESection* PEFile::FindFirstAllocatableSection( void )
 {
     LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
-    
+
         if ( item->IsFinal() == false )
             return item;
-    
+
     LIST_FOREACH_END
 
     return NULL;
@@ -1087,10 +1087,10 @@ bool PEFile::HasRelocationInfo( void ) const
 {
     // Check any sections.
     LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
-    
+
         if ( item->relocations.size() != 0 )
             return true;
-    
+
     LIST_FOREACH_END
 
     // Check the base relocation data.
@@ -1105,10 +1105,10 @@ bool PEFile::HasLinenumberInfo( void ) const
 {
     // Check sections.
     LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
-    
+
         if ( item->linenumbers.size() != 0 )
             return true;
-    
+
     LIST_FOREACH_END
 
     // Has no embedded line number info.

@@ -95,7 +95,7 @@ PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::ReadPEImportFunctions( P
             );
         }
     }
-                    
+
     importNameArraySect->SetPlacedMemory( allocEntry, rva );
 
     // The array goes on until a terminating NULL.
@@ -173,7 +173,7 @@ PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::ReadPEImportFunctions( P
             ReadPEString( importNameStream, funcInfo.name );
         }
         funcInfo.isOrdinalImport = isOrdinalImport;
-                        
+
         funcs.push_back( std::move( funcInfo ) );
     }
 
@@ -235,26 +235,38 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         // We need the program data aswell.
         // Assumption is that the data directly follows the header and ends in the new data ptr.
         {
-            std::int32_t newDataOffset = dosHeader.e_lfanew;
+            std::int32_t lfa_offset_data = dosHeader.e_lfanew;
 
-            std::int32_t sizeOfStubData = ( newDataOffset - sizeof( dosHeader ) );
-
-            assert( sizeOfStubData >= 0 );
-
-            std::vector <unsigned char> progData( sizeOfStubData );
+            if ( lfa_offset_data < 0 )
             {
-                size_t progReadCount = peStream->Read( progData.data(), sizeOfStubData );
-
-                if ( progReadCount != sizeOfStubData )
-                {
-                    throw peframework_exception(
-                        ePEExceptCode::CORRUPT_PE_STRUCTURE,
-                        "invalid MSDOS stub"
-                    );
-                }
+                throw peframework_exception(
+                    ePEExceptCode::CORRUPT_PE_STRUCTURE,
+                    "invalid MSDOS e_lfanew offset (negative)"
+                );
             }
 
-            dos.progData = std::move( progData );
+            std::uint32_t newDataOffset = (std::uint32_t)dosHeader.e_lfanew;
+
+            // Only copy a possible stub if it exists.
+            if ( newDataOffset >= sizeof( dosHeader ) )
+            {
+                std::uint32_t sizeOfStubData = ( newDataOffset - sizeof( dosHeader ) );
+
+                std::vector <unsigned char> progData( sizeOfStubData );
+                {
+                    size_t progReadCount = peStream->Read( progData.data(), sizeOfStubData );
+
+                    if ( progReadCount != sizeOfStubData )
+                    {
+                        throw peframework_exception(
+                            ePEExceptCode::CORRUPT_PE_STRUCTURE,
+                            "invalid MSDOS stub"
+                        );
+                    }
+                }
+
+                dos.progData = std::move( progData );
+            }
         }
 
         peFileStartOffset = dosHeader.e_lfanew;
@@ -302,7 +314,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         // Store stuff.
         peInfo.machine_id = machineType;
         peInfo.timeDateStamp = peHeader.FileHeader.TimeDateStamp;
-    
+
         // Flags that matter.
         std::uint16_t chars = peHeader.FileHeader.Characteristics;
 
@@ -320,10 +332,10 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         peInfo.bytesReversedHI          = ( chars & PEL_IMAGE_FILE_BYTES_REVERSED_HI ) != 0;
 
         // Other properties should be respected during parsing.
-        bool hasRelocsStripped          = ( chars & PEL_IMAGE_FILE_RELOCS_STRIPPED ) != 0;
-        bool hasLineNumsStripped        = ( chars & PEL_IMAGE_FILE_LINE_NUMS_STRIPPED ) != 0;
-        bool hasLocalSymsStripped       = ( chars & PEL_IMAGE_FILE_LOCAL_SYMS_STRIPPED ) != 0;
-        bool hasDebugStripped           = ( chars & PEL_IMAGE_FILE_DEBUG_STRIPPED ) != 0;
+        //bool hasRelocsStripped          = ( chars & PEL_IMAGE_FILE_RELOCS_STRIPPED ) != 0;
+        //bool hasLineNumsStripped        = ( chars & PEL_IMAGE_FILE_LINE_NUMS_STRIPPED ) != 0;
+        //bool hasLocalSymsStripped       = ( chars & PEL_IMAGE_FILE_LOCAL_SYMS_STRIPPED ) != 0;
+        //bool hasDebugStripped           = ( chars & PEL_IMAGE_FILE_DEBUG_STRIPPED ) != 0;
 
         // Remember that we were here.
         pe_file_ptr_t optionalHeaderOffset = peStream->Tell();
@@ -456,7 +468,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
             // Extract the data directory information.
             numberOfDataDirs = optHeader.NumberOfRvaAndSizes;
-            
+
             // Decrease remaining size.
             optHeaderSizeRemain -= sizeof(optHeaderType);
         }
@@ -632,7 +644,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         PESection section;
         section.shortName = std::string( (const char*)sectHeader.Name, strnlen( (const char*)sectHeader.Name, countof(sectHeader.Name) ) );
         section.SetPlacementInfo( sectHeader.VirtualAddress, sectHeader.Misc.VirtualSize );
-        
+
         // Save characteristics flags.
         std::uint32_t schars = sectHeader.Characteristics;
 
@@ -812,9 +824,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 std::vector <PEExportDir::func> funcs;
                 funcs.reserve( expEntry.NumberOfFunctions );
 
-                std::uint32_t archPointerSize = GetPEPointerSize( isExtendedFormat );
-                std::uint64_t tabSize = ( archPointerSize * expEntry.NumberOfFunctions );
-                
                 PESection *addrPtrSect;
                 PEDataStream addrPtrStream;
                 {
@@ -926,7 +935,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     PEDataStream addrNameOrdStream;
                     {
                         bool gotStream = sections.GetPEDataStream( expEntry.AddressOfNameOrdinals, addrNameOrdStream, &addrNameOrdSect );
-                        
+
                         if ( !gotStream )
                         {
                             throw peframework_exception(
@@ -989,7 +998,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         // Store this link.
                         PEExportDir::mappedName nameMap;
                         nameMap.name = std::move( realName );
-                        
+
                         realNamePtrSect->SetPlacedMemory( nameMap.nameAllocEntry, namePtrRVA );
 
                         expInfo.funcNameMap.insert( std::make_pair( std::move( nameMap ), std::move( mapIndex ) ) );
@@ -1046,7 +1055,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 if ( importInfo.Characteristics == 0 &&
                      importInfo.TimeDateStamp == 0 &&
                      importInfo.ForwarderChain == 0 &&
-                     importInfo.Name == 0 && 
+                     importInfo.Name == 0 &&
                      importInfo.FirstThunk == 0 )
                 {
                     break;
@@ -1201,7 +1210,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         rootStream.Read( &nameCharCount, sizeof(nameCharCount) );
 
                         nameOfItem.resize( nameCharCount );
-                
+
                         rootStream.Read( (char16_t*)nameOfItem.c_str(), nameCharCount );
                     }
 
@@ -1224,7 +1233,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 for ( std::uint32_t n = 0; n < numIDEntries; n++ )
                 {
                     rootStream.Seek( subDirStartOff + ( n + numNamedEntries ) * sizeof(PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY) );
-            
+
                     PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY idEntry;
                     rootStream.Read( &idEntry, sizeof(idEntry) );
 
@@ -1579,7 +1588,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                 if ( !gotStream )
                 {
-                    throw peframework_exception( 
+                    throw peframework_exception(
                         ePEExceptCode::CORRUPT_PE_STRUCTURE,
                         "invalid PE thread-local-storage directory"
                     );
@@ -1764,7 +1773,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             // PE sections so we need to read it custom.
 
             std::uint32_t boundImpFileOff = boundDataDir.VirtualAddress;
-            std::uint32_t boundImpStoreSize = boundDataDir.Size;
 
             struct helpers
             {
@@ -1785,7 +1793,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         while ( true )
                         {
                             char c;
-                
+
                             bool gotChar = peStream->ReadStruct( c );
 
                             if ( !gotChar )
@@ -1812,7 +1820,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     PEBoundImport desc;
                     desc.timeDateStamp = boundDesc.TimeDateStamp;
                     desc.DLLName = std::move( DLLName );
-        
+
                     // Read child structures.
                     const std::uint32_t numChildren = boundDesc.NumberOfModuleForwarderRefs;
 
@@ -1843,7 +1851,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             // Read all bound import descriptors.
             // They are not fixed-size, so we need to read till end.
             peStream->Seek( boundImpFileOff );
-            
+
             while ( true )
             {
                 // Are we past the descriptors?
@@ -1947,7 +1955,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                 PEDelayLoadDesc desc;
                 desc.attrib = delayLoad.Attributes.AllAttributes;
-                
+
                 // Read DLL name.
                 if ( std::uint32_t DllNameRVA = delayLoad.DllNameRVA )
                 {
@@ -1989,7 +1997,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 }
 
                 desc.IATRef = sections.ResolveRVAToRef( delayLoad.ImportAddressTableRVA );
-                
+
                 if ( std::uint32_t importNamesRVA = delayLoad.ImportNameTableRVA )
                 {
                     desc.importNames =
@@ -2021,14 +2029,14 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     }
 
     // TODO: maybe validate all structures more explicitly in context now.
-    
+
     // Successfully loaded!
     // Store everything inside ourselves.
     this->dos_data = std::move( dos );
     this->pe_finfo = std::move( peInfo );
     this->peOptHeader = std::move( peOpt );
     this->sections = std::move( sections );
-    
+
     // Data directories.
     this->exportDir = std::move( expInfo );
     this->imports = std::move( impDescs );

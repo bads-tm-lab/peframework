@@ -138,10 +138,11 @@ public:
             : shortName( std::move( right.shortName ) ), virtualSize( std::move( right.virtualSize ) ),
               virtualAddr( std::move( right.virtualAddr ) ), relocations( std::move( right.relocations ) ),
               linenumbers( std::move( right.linenumbers ) ), chars( std::move( right.chars ) ),
-              isFinal( std::move( right.isFinal ) ), dataAlloc( std::move( right.dataAlloc ) ),
+              isFinal( std::move( right.isFinal ) ),
+              placedOffsets( std::move( right.placedOffsets ) ), RVAreferalList( std::move( right.RVAreferalList ) ),
+              dataAlloc( std::move( right.dataAlloc ) ),
               dataRefList( std::move( right.dataRefList ) ), dataAllocList( std::move( right.dataAllocList ) ),
-              streamAllocMan( std::move( right.streamAllocMan ) ), stream( std::move( right.stream ) ),
-              placedOffsets( std::move( right.placedOffsets ) ), RVAreferalList( std::move( right.RVAreferalList ) )
+              streamAllocMan( std::move( right.streamAllocMan ) ), stream( std::move( right.stream ) )
         {
             // Since I have been writing this, how about a move constructor that allows
             // default-construction of all members but on top of that executes its own constructor body?
@@ -171,7 +172,7 @@ public:
 
         inline void unregisterOwnerImage( void )
         {
-            if ( PESectionMan *ownerImage = this->ownerImage )
+            if ( this->ownerImage )
             {
                 LIST_REMOVE( this->sectionNode );
 
@@ -285,7 +286,7 @@ public:
             bool sect_mem_16bit;
             bool sect_mem_locked;
             bool sect_mem_preload;
-        
+
             eAlignment sect_alignment;
 
             bool sect_link_nreloc_ovfl;
@@ -343,7 +344,7 @@ public:
 
             inline ~PESectionReference( void )
             {
-                if ( PESection *theSect = this->theSect )
+                if ( this->theSect )
                 {
                     LIST_REMOVE( this->sectionNode );
 
@@ -602,7 +603,7 @@ public:
 
             // Data-access methods for this allocation
             void WriteToSection( const void *dataPtr, std::uint32_t dataSize, std::int32_t dataOff = 0 );
-            
+
             // For allocating placed RVAs into allocated structs.
             void RegisterTargetRVA(
                 std::uint32_t patchOffset, PESection *targetSect, std::uint32_t targetOff,
@@ -902,7 +903,7 @@ private:
             typedef sliceOfData <std::uint32_t> sectionSlice_t;
 
             // Get the slice of the present data.
-            const std::uint32_t sectVirtualAddr = theSection->virtualAddr;
+            //const std::uint32_t sectVirtualAddr = theSection->virtualAddr;
             const std::uint32_t sectVirtualSize = theSection->virtualSize;
 
             sectionSlice_t dataSlice( 0, theSection->stream.Size() );
@@ -1026,7 +1027,7 @@ private:
             std::uint32_t sectIndex = 0;
 
             LIST_FOREACH_BEGIN( PESection, this->sectionList.root, sectionNode )
-        
+
                 // We only support that for sections whose data is figured out already.
                 if ( item->isFinal )
                 {
@@ -1065,7 +1066,7 @@ private:
                 }
 
                 sectIndex++;
-        
+
             LIST_FOREACH_END
 
             // Not found.
@@ -1402,7 +1403,7 @@ public:
 
         PESectionAllocation allocEntry;
         writeSect.Allocate( allocEntry, writeSize, sizeof(charType) );
-                        
+
         allocEntry.WriteToSection( string.c_str(), writeSize );
 
         return allocEntry;
@@ -1542,7 +1543,7 @@ public:
 
         PESectionAllocation impNameArrayAllocEntry;
         PESectionAllocation DLLName_allocEntry;
-        
+
         // Meta-information we must keep because it is baked
         // by compilers.
         PESectionDataReference firstThunkRef;
@@ -1561,8 +1562,8 @@ public:
         };
 
         inline PEResourceItem( eType typeDesc, bool isIdentifierName, std::u16string name, std::uint16_t identifier )
-            : itemType( std::move( typeDesc ) ),
-              hasIdentifierName( std::move( isIdentifierName ) ), name( std::move( name ) ), identifier( std::move( identifier ) )
+            : itemType( std::move( typeDesc ) ), name( std::move( name ) ),
+              identifier( std::move( identifier ) ), hasIdentifierName( std::move( isIdentifierName ) )
         {
             return;
         }
@@ -1597,7 +1598,7 @@ public:
         std::uint32_t codePage;
         std::uint32_t reserved;
     };
-    
+
     struct PEResourceDir : public PEResourceItem
     {
         inline PEResourceDir( bool isIdentifierName, std::u16string name, std::uint16_t identifier )
@@ -1662,7 +1663,7 @@ public:
         std::uint32_t timeDateStamp;
         std::uint16_t majorVersion;
         std::uint16_t minorVersion;
-        
+
     private:
         struct _compareNamedEntry
         {
@@ -1710,7 +1711,7 @@ public:
         std::set <PEResourceItem*, _compareIDEntry> idChildren;
     };
     PEResourceDir resourceRoot;
-    
+
     PESectionAllocation resAllocEntry;
 
     struct PERuntimeFunction
@@ -1914,7 +1915,7 @@ public:
         inline PEBoundImport( void ) = default;
         inline PEBoundImport( const PEBoundImport& right ) = delete;
         inline PEBoundImport( PEBoundImport&& right ) = default;
-        
+
         inline PEBoundImport& operator = ( const PEBoundImport& right ) = delete;
         inline PEBoundImport& operator = ( PEBoundImport&& right ) = default;
 
