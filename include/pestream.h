@@ -65,14 +65,14 @@ struct PEStreamSTL : public PEStream
 
     pe_file_ptr_t Tell( void ) const override
     {
-        return this->implStream->tellg();
+        return this->implStream->tellg();   // FOR FILES BOTH INPUT AND OUTPUT POINTERS ARE THE SAME BY DEFINITION.
     }
 
     bool Seek( pe_file_ptr_t pos ) override
     {
         std::iostream *stream = this->implStream;
 
-        stream->seekg( pos );
+        stream->seekg( pos );   // FOR FILES BOTH INPUT AND OUTPUT POINTERS ARE THE SAME BY DEFINITION.
 
         return stream->good();
     }
