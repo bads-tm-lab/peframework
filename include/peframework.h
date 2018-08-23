@@ -4,7 +4,6 @@
 #define _PEFRAMEWORK_MAIN_INCLUDE_
 
 // Basic dependencies.
-#include <cstddef>
 #include <sdk/MacroUtils.h>
 
 // Exception info needs first.

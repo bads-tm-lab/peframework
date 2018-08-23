@@ -164,7 +164,7 @@ public:
             {
                 this->sectionNode.moveFrom( std::move( right.sectionNode ) );
 
-                right.ownerImage = NULL;
+                right.ownerImage = nullptr;
             }
 
             this->ownerImage = ownerImage;
@@ -176,7 +176,7 @@ public:
             {
                 LIST_REMOVE( this->sectionNode );
 
-                this->ownerImage = NULL;
+                this->ownerImage = nullptr;
             }
         }
 
@@ -313,7 +313,7 @@ public:
         {
             friend struct PESection;
 
-            inline PESectionReference( PESection *theSect = NULL )
+            inline PESectionReference( PESection *theSect = nullptr )
             {
                 this->theSect = theSect;
 
@@ -338,7 +338,7 @@ public:
                     this->sectionNode.moveFrom( std::move( right.sectionNode ) );
 
                     // We turn the moved-from object invalid.
-                    right.theSect = NULL;
+                    right.theSect = nullptr;
                 }
             }
 
@@ -348,7 +348,7 @@ public:
                 {
                     LIST_REMOVE( this->sectionNode );
 
-                    this->theSect = NULL;
+                    this->theSect = nullptr;
                 }
             }
 
@@ -371,7 +371,7 @@ public:
             // Called when unlinking from list in internal process.
             virtual void clearLink( void )
             {
-                this->theSect = NULL;
+                this->theSect = nullptr;
             }
 
             PESection *theSect;
@@ -415,7 +415,7 @@ public:
 
             inline std::uint32_t GetSectionOffset( void ) const
             {
-                if ( this->theSect == NULL )
+                if ( this->theSect == nullptr )
                 {
                     return 0;
                 }
@@ -425,7 +425,7 @@ public:
 
             inline std::uint32_t GetRVA( void ) const
             {
-                if ( this->theSect == NULL )
+                if ( this->theSect == nullptr )
                 {
                     // Zero RVA is valid.
                     return 0;
@@ -436,7 +436,7 @@ public:
 
             inline std::uint32_t GetDataSize( void ) const
             {
-                if ( this->theSect == NULL )
+                if ( this->theSect == nullptr )
                 {
                     return 0;
                 }
@@ -485,7 +485,7 @@ public:
                 {
                     this->targetNode.moveFrom( std::move( right.targetNode ) );
 
-                    right.targetSect = NULL;
+                    right.targetSect = nullptr;
                 }
             }
 
@@ -535,7 +535,7 @@ public:
 
             inline PESectionAllocation( void )
             {
-                this->theSection = NULL;
+                this->theSection = nullptr;
                 this->sectOffset = 0;
                 this->dataSize = 0;
             }
@@ -563,7 +563,7 @@ public:
                 }
 
                 // Invalidate the old section.
-                right.theSection = NULL;
+                right.theSection = nullptr;
             }
             inline PESectionAllocation( const PESectionAllocation& right ) = delete;
 
@@ -582,7 +582,7 @@ public:
                     // General list remove.
                     LIST_REMOVE( this->sectionNode );
 
-                    this->theSection = NULL;
+                    this->theSection = nullptr;
                 }
             }
 
@@ -629,7 +629,7 @@ public:
 
             inline std::uint32_t ResolveInternalOffset( std::uint32_t offsetInto ) const
             {
-                if ( this->theSection == NULL )
+                if ( this->theSection == nullptr )
                 {
                     throw peframework_exception(
                         ePEExceptCode::RUNTIME_ERROR,
@@ -644,7 +644,7 @@ public:
             {
                 PESection *theSection = this->theSection;
 
-                if ( theSection == NULL )
+                if ( theSection == nullptr )
                 {
                     throw peframework_exception(
                         ePEExceptCode::RUNTIME_ERROR,
@@ -657,14 +657,14 @@ public:
 
             inline bool IsAllocated( void ) const
             {
-                return ( theSection != NULL );
+                return ( theSection != nullptr );
             }
 
             inline PESectionAllocation CloneOnlyFinal( void ) const
             {
                 PESection *allocSect = this->theSection;
 
-                if ( allocSect == NULL )
+                if ( allocSect == nullptr )
                 {
                     return PESectionAllocation();
                 }
@@ -724,7 +724,7 @@ public:
 
         inline std::uint32_t GetVirtualAddress( void ) const
         {
-            if ( this->ownerImage == NULL )
+            if ( this->ownerImage == nullptr )
             {
                 throw peframework_exception(
                     ePEExceptCode::RUNTIME_ERROR,
@@ -861,7 +861,7 @@ private:
     {
         inline PEDataStream( void )
         {
-            this->accessSection = NULL;
+            this->accessSection = nullptr;
             this->dataOffset = 0;
             this->seek_off = 0;
         }
@@ -1017,7 +1017,7 @@ private:
 
         // Function to get the section and the offset into it for a RVA.
         template <typename sectLocationProviderType>
-        inline bool GetPEDataLocationGeneric( const sectLocationProviderType& sectLocProv, std::uint32_t rvirtAddr, std::uint32_t rvirtSize, std::uint32_t *allocOffOut, PESection **allocSectOut = NULL, std::uint32_t *sectIndexOut = NULL ) const
+        inline bool GetPEDataLocationGeneric( const sectLocationProviderType& sectLocProv, std::uint32_t rvirtAddr, std::uint32_t rvirtSize, std::uint32_t *allocOffOut, PESection **allocSectOut = nullptr, std::uint32_t *sectIndexOut = nullptr ) const
         {
             typedef sliceOfData <std::uint32_t> memSlice_t;
 
@@ -1083,14 +1083,14 @@ private:
         };
 
     public:
-        inline bool GetPEDataLocation( std::uint32_t rvirtAddr, std::uint32_t *allocOffOut, PESection **allocSectOut = NULL, std::uint32_t *sectIndexOut = NULL ) const
+        inline bool GetPEDataLocation( std::uint32_t rvirtAddr, std::uint32_t *allocOffOut, PESection **allocSectOut = nullptr, std::uint32_t *sectIndexOut = nullptr ) const
         {
             mainSectLocProv locProv;
 
             return GetPEDataLocationGeneric( locProv, rvirtAddr, 1, allocOffOut, allocSectOut, sectIndexOut );
         }
 
-        inline bool GetPEDataLocationEx( std::uint32_t rvirtAddr, std::uint32_t rvirtSize, std::uint32_t *allocOffOut, PESection **allocSectOut = NULL, std::uint32_t *sectIndexOut = NULL ) const
+        inline bool GetPEDataLocationEx( std::uint32_t rvirtAddr, std::uint32_t rvirtSize, std::uint32_t *allocOffOut, PESection **allocSectOut = nullptr, std::uint32_t *sectIndexOut = nullptr ) const
         {
             mainSectLocProv locProv;
 
@@ -1102,7 +1102,7 @@ private:
         inline bool GetPEDataStreamGeneric(
             const sectLocationProviderType& sectLocProv,
             std::uint32_t rvirtAddr, PEDataStream& streamOut,
-            PESection **allocSectOut = NULL
+            PESection **allocSectOut = nullptr
         )
         {
             // We return a stream into a section.
@@ -1126,7 +1126,7 @@ private:
 
         inline bool GetPEDataStream(
             std::uint32_t rvirtAddr, PEDataStream& streamOut,
-            PESection **allocSectOut = NULL
+            PESection **allocSectOut = nullptr
         )
         {
             mainSectLocProv locProv;
@@ -1379,7 +1379,7 @@ public:
     PESection* PlaceSection( PESection&& theSection );
     PESection* FindFirstSectionByName( const char *name );
     PESection* FindFirstAllocatableSection( void );
-    PESection* FindSectionByRVA( std::uint32_t rva, std::uint32_t *sectIndexOut = NULL, std::uint32_t *sectOffOut = NULL );
+    PESection* FindSectionByRVA( std::uint32_t rva, std::uint32_t *sectIndexOut = nullptr, std::uint32_t *sectOffOut = nullptr );
     bool RemoveSection( PESection *section );
 
     std::uint32_t GetSectionCount( void ) const     { return this->sections.GetSectionCount(); }
@@ -1528,7 +1528,7 @@ public:
         typedef std::vector <importFunc> functions_t;
 
         // Query API.
-        const importFunc* FindImportEntry( std::uint16_t ordinal_hint, const char *name, bool isOrdinalImport, std::uint32_t *indexOut = NULL ) const;
+        const importFunc* FindImportEntry( std::uint16_t ordinal_hint, const char *name, bool isOrdinalImport, std::uint32_t *indexOut = nullptr ) const;
 
         // Helper API.
         static functions_t ReadPEImportFunctions( PESectionMan& sections, std::uint32_t rva, PESectionAllocation& allocEntry, bool isExtendedFormat );
@@ -1980,6 +1980,9 @@ public:
     void RemoveRelocations( std::uint32_t rva, std::uint32_t regionSize );
 
     void OnWriteAbsoluteVA( PESection *writeSect, std::uint32_t sectOff, bool is64Bit );
+
+    // Data writing helpers.
+    bool WriteModulePointer( PESection *writeSect, std::uint32_t sectOff, std::uint32_t targetRVA );
 
     // Import API.
     PEImportDesc* FindImportDescriptor( const char *moduleName );

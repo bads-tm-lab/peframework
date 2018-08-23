@@ -39,7 +39,7 @@ void PEFile::PEFileSpaceData::ReadFromFile( PEStream *peStream, const PESectionM
     {
         PESection *fileDataSect;
 
-        bool gotLocation = sections.GetPEDataLocation( rva, NULL, &fileDataSect );
+        bool gotLocation = sections.GetPEDataLocation( rva, nullptr, &fileDataSect );
 
         if ( !gotLocation )
         {
@@ -746,7 +746,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         peStream->Seek( sectHeaderOff );
 
         // Remember this section.
-        bool regSuccess = ( sections.PlaceSection( std::move( section ) ) != NULL );
+        bool regSuccess = ( sections.PlaceSection( std::move( section ) ) != nullptr );
 
         if ( !regSuccess )
         {
@@ -1334,7 +1334,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                 // Since the runtime function entry stores RVAs, we want to remember them
                 // relocation independent.
-                PESection *beginAddrSect = NULL;
+                PESection *beginAddrSect = nullptr;
                 std::uint32_t beginAddrSectOff = 0;
 
                 if ( std::uint32_t BeginAddress = func.BeginAddress )
@@ -1349,7 +1349,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         );
                     }
                 }
-                PESection *endAddrSect = NULL;
+                PESection *endAddrSect = nullptr;
                 std::uint32_t endAddrSectOff = 0;
 
                 if ( std::uint32_t EndAddress = func.EndAddress )
@@ -1364,7 +1364,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         );
                     }
                 }
-                PESection *unwindInfoSect = NULL;
+                PESection *unwindInfoSect = nullptr;
                 std::uint32_t unwindInfoSectOff = 0;
 
                 if ( std::uint32_t UnwindInfoAddress = func.UnwindInfoAddress )

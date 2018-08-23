@@ -163,7 +163,7 @@ std::uint16_t PEFile::GetPENativeDLLOptFlags( void )
     return chars;
 }
 
-PEFile::PESection::PESection( void ) : stream( NULL, 0, streamAllocMan )
+PEFile::PESection::PESection( void ) : stream( nullptr, 0, streamAllocMan )
 {
     this->virtualSize = 0;
     this->virtualAddr = 0;
@@ -192,7 +192,7 @@ PEFile::PESection::PESection( void ) : stream( NULL, 0, streamAllocMan )
     this->chars.sect_mem_read = true;
     this->chars.sect_mem_write = false;
     this->isFinal = false;
-    this->ownerImage = NULL;
+    this->ownerImage = nullptr;
 }
 
 PEFile::PESection::~PESection( void )
@@ -202,7 +202,7 @@ PEFile::PESection::~PESection( void )
     {
         LIST_FOREACH_BEGIN( PESectionAllocation, this->dataAllocList.root, sectionNode )
 
-            item->theSection = NULL;
+            item->theSection = nullptr;
             item->sectOffset = 0;
             item->dataSize = 0;
 
@@ -227,7 +227,7 @@ PEFile::PESection::~PESection( void )
     {
         LIST_FOREACH_BEGIN( PEPlacedOffset, this->RVAreferalList.root, targetNode )
 
-            item->targetSect = NULL;
+            item->targetSect = nullptr;
             item->dataOffset = 0;
             item->offsetIntoSect = 0;
 
@@ -244,7 +244,7 @@ void PEFile::PESection::SetPlacementInfo( std::uint32_t virtAddr, std::uint32_t 
 {
     // This method is called if the section should be placed into a specific position into
     // a PE binary.
-    assert( this->ownerImage == NULL );
+    assert( this->ownerImage == nullptr );
 
     this->virtualAddr = virtAddr;
     this->virtualSize = virtSize;
@@ -277,7 +277,7 @@ std::uint32_t PEFile::PESection::Allocate( PESectionAllocation& allocBlock, std:
     // Update meta-data.
     std::uint32_t alloc_off = allocBlock.sectionBlock.slice.GetSliceStartPoint();
 
-    assert( allocBlock.theSection == NULL );
+    assert( allocBlock.theSection == nullptr );
 
     // We should at least serve the space on the executable section if we allocated there, even if
     // we do not initialize it.
@@ -355,10 +355,10 @@ void PEFile::PESection::SetPlacedMemory( PESectionAllocation& blockMeta, std::ui
 void PEFile::PESection::SetPlacedMemoryInline( PESectionAllocation& blockMeta, std::uint32_t allocOff, std::uint32_t allocSize )
 {
     assert( this->isFinal == true );
-    assert( this->ownerImage != NULL );
+    assert( this->ownerImage != nullptr );
 
     // We keep the block allocation structure invalid.
-    assert( blockMeta.theSection == NULL );
+    assert( blockMeta.theSection == nullptr );
 
     // Verify that this allocation really is inside the section.
     {
@@ -459,7 +459,7 @@ void PEFile::PESection::PEPlacedOffset::WriteIntoData( PEFile *peImage, PESectio
 
 std::uint32_t PEFile::PESection::ResolveRVA( std::uint32_t sectOffset ) const
 {
-    assert( this->ownerImage != NULL );
+    assert( this->ownerImage != nullptr );
 
     return ( this->virtualAddr + sectOffset );
 }
@@ -745,7 +745,7 @@ PEFile::PESectionMan::~PESectionMan( void )
     // Destroy all sections that still reside in us.
     LIST_FOREACH_BEGIN( PESection, this->sectionList.root, sectionNode )
 
-        item->ownerImage = NULL;
+        item->ownerImage = nullptr;
 
         delete item;
 
@@ -766,7 +766,7 @@ PEFile::PESectionMan& PEFile::PESectionMan::operator = ( PESectionMan&& right )
 
 PEFile::PESection* PEFile::PESectionMan::AddSection( PESection&& theSection )
 {
-    assert( theSection.ownerImage == NULL );
+    assert( theSection.ownerImage == nullptr );
 
     // Before proceeding we must have finalized the section.
     // A final section must have a valid virtualSize region of all its allocations.
@@ -790,7 +790,7 @@ PEFile::PESection* PEFile::PESectionMan::AddSection( PESection&& theSection )
     if ( !foundSpace )
     {
         // In very critical scenarios the executable may be full!
-        return NULL;
+        return nullptr;
     }
 
     // We need to move the section into memory we control.
@@ -812,7 +812,7 @@ PEFile::PESection* PEFile::PESectionMan::AddSection( PESection&& theSection )
 
 PEFile::PESection* PEFile::PESectionMan::PlaceSection( PESection&& theSection )
 {
-    assert( theSection.ownerImage == NULL );
+    assert( theSection.ownerImage == nullptr );
 
     // The section must be final because it requires a given offset and size.
     assert( theSection.isFinal == true );
@@ -832,7 +832,7 @@ PEFile::PESection* PEFile::PESectionMan::PlaceSection( PESection&& theSection )
     if ( !obtSpace )
     {
         // If this is triggered then most likely there is an invalid PE section configuration.
-        return NULL;
+        return nullptr;
     }
 
     // Now put the section into our space.
@@ -858,7 +858,7 @@ bool PEFile::PESectionMan::RemoveSection( PESection *section )
 
     LIST_REMOVE( section->sectionNode );
 
-    section->ownerImage = NULL;
+    section->ownerImage = nullptr;
 
     this->numSections--;
 
@@ -919,7 +919,7 @@ void PEFile::PEFileSpaceData::fileSpaceStreamBufferManager::EstablishBufferView(
         fileSpaceMan->ClearData();
 
         // Reset buffer variables.
-        memPtr = NULL;
+        memPtr = nullptr;
         streamSize = 0;
     }
     else
@@ -976,7 +976,7 @@ PEFile::PEFileSpaceData::fileSpaceStream_t PEFile::PEFileSpaceData::OpenStream( 
     }
 
     // Get the buffer properties.
-    void *streamBuf = NULL;
+    void *streamBuf = nullptr;
     std::uint32_t streamSize = 0;
 
     eStorageType storageType = this->storageType;
@@ -989,7 +989,7 @@ PEFile::PEFileSpaceData::fileSpaceStream_t PEFile::PEFileSpaceData::OpenStream( 
 
         PESection *accSect = this->sectRef.GetSection();
 
-        assert( accSect != NULL );
+        assert( accSect != nullptr );
 
         streamBuf = ( (char*)accSect->stream.Data() + this->sectRef.ResolveInternalOffset( 0 ) );
         streamSize = this->sectRef.GetDataSize();
@@ -1022,7 +1022,7 @@ PEFile::PESection* PEFile::FindFirstSectionByName( const char *name )
 
     LIST_FOREACH_END
 
-    return NULL;
+    return nullptr;
 }
 
 PEFile::PESection* PEFile::FindFirstAllocatableSection( void )
@@ -1034,7 +1034,7 @@ PEFile::PESection* PEFile::FindFirstAllocatableSection( void )
 
     LIST_FOREACH_END
 
-    return NULL;
+    return nullptr;
 }
 
 PEFile::PESection* PEFile::FindSectionByRVA( std::uint32_t rva, std::uint32_t *sectIndexOut, std::uint32_t *sectOffOut )
@@ -1050,7 +1050,7 @@ PEFile::PESection* PEFile::FindSectionByRVA( std::uint32_t rva, std::uint32_t *s
     }
 
     // Nothing found.
-    return NULL;
+    return nullptr;
 }
 
 bool PEFile::RemoveSection( PESection *section )

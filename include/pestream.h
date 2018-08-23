@@ -1,6 +1,7 @@
 #ifndef _PEFRAMEWORK_STREAM_
 #define _PEFRAMEWORK_STREAM_
 
+// For size_t.
 #include <cstddef>
 
 #include <sdk/MacroUtils.h>

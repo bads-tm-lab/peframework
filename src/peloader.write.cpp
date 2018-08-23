@@ -82,7 +82,7 @@ inline decltype( auto ) FindMapValue( mapType& map, const keyType& key )
     const auto& foundIter = map.find( key );
 
     if ( foundIter == map.end() )
-        return (decltype(&foundIter->second))NULL;
+        return (decltype(&foundIter->second))nullptr;
 
     return &foundIter->second;
 }
@@ -518,7 +518,7 @@ void PEFile::CommitDataDirectories( void )
 
                         if ( funcInfo.isForwarder )
                         {
-                            assert( finfo != NULL );
+                            assert( finfo != nullptr );
 
                             dataTabOffAlloc.RegisterTargetRVA( dataTabItemOff, expDirAlloc, finfo->forwarder_off );
                         }
@@ -698,7 +698,7 @@ void PEFile::CommitDataDirectories( void )
                                     // Create a memory copy of it.
                                     item_allocInfo *memChildAlloc = new item_allocInfo( std::move( childAlloc ) );
 
-                                    assert( memChildAlloc != NULL );
+                                    assert( memChildAlloc != nullptr );
 
                                     try
                                     {
@@ -726,7 +726,7 @@ void PEFile::CommitDataDirectories( void )
                                     // Create a memory item.
                                     item_allocInfo *memChildAlloc = new item_allocInfo( std::move( childAlloc ) );
 
-                                    assert( memChildAlloc != NULL );
+                                    assert( memChildAlloc != nullptr );
 
                                     try
                                     {

@@ -16,7 +16,7 @@ PEFile::PEImportDesc* PEFile::FindImportDescriptor( const char *moduleName )
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 PEFile::PEImportDesc& PEFile::EstablishImportDescriptor( const char *moduleName )
@@ -37,7 +37,7 @@ PEFile::PEImportDesc& PEFile::EstablishImportDescriptor( const char *moduleName 
 const PEFile::PEImportDesc::importFunc* PEFile::PEImportDesc::FindImportEntry( std::uint16_t ordinal_hint, const char *name, bool isOrdinalImport, std::uint32_t *indexOut ) const
 {
     std::uint32_t index = 0;
-    const PEImportDesc::importFunc *funcOut = NULL;
+    const PEImportDesc::importFunc *funcOut = nullptr;
 
     for ( const PEImportDesc::importFunc& impFunc : this->funcs )
     {

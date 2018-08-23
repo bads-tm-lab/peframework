@@ -95,5 +95,5 @@ PEFile::PEExportDir::func* PEFile::PEExportDir::ResolveExport( bool isOrdinal, s
         }
     }
 
-    return NULL;
+    return nullptr;
 }

@@ -25,7 +25,7 @@ PEFile::PEResourceItem* PEFile::PEResourceDir::FindItem( bool isIdentifierName, 
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 std::wstring PEFile::PEResourceItem::GetName( void ) const

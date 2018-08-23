@@ -173,3 +173,29 @@ void PEFile::OnWriteAbsoluteVA( PESection *writeSect, std::uint32_t sectOff, boo
         this->AddRelocation( rva, relocType );
     }
 }
+
+bool PEFile::WriteModulePointer( PESection *writeSect, std::uint32_t sectOff, std::uint32_t targetRVA )
+{
+    std::uint64_t vaPointer = ( this->sections.GetImageBase() + targetRVA );
+
+    writeSect->stream.Seek( sectOff );
+
+    bool success;
+    bool is64bit = this->isExtendedFormat;
+    
+    if ( is64bit )
+    {
+        success = writeSect->stream.WriteUInt64( vaPointer );
+    }
+    else
+    {
+        success = writeSect->stream.WriteUInt32( (std::uint32_t)( vaPointer ) );
+    }
+
+    if ( success )
+    {
+        this->OnWriteAbsoluteVA( writeSect, sectOff, is64bit );
+    }
+
+    return success;
+}
