@@ -35,7 +35,7 @@ void PEFile::AddRelocation( std::uint32_t rva, PEBaseReloc::eRelocType relocType
     newItem.type = (std::uint16_t)relocType;
     newItem.offset = insideChunkOff;
 
-    relocDict.items.push_back( std::move( newItem ) );
+    relocDict.items.AddToBack( std::move( newItem ) );
 
     // We need a new base relocations array.
     this->baseRelocAllocEntry = PESectionAllocation();
@@ -50,68 +50,84 @@ void PEFile::RemoveRelocations( std::uint32_t rva, std::uint32_t regionSize )
 
     std::uint32_t baserelocRemoveIndex = ( rva / baserelocChunkSize );
 
+    auto *foundMinimumNode = this->baseRelocs.FindMinimumByCriteria(
+        [&]( const decltype(PEFile::baseRelocs)::Node *leftNode )
+    {
+        std::uint32_t relocIndex = leftNode->GetKey();
+
+        if ( relocIndex < baserelocRemoveIndex )
+        {
+            return eir::eCompResult::LEFT_LESS;
+        }
+
+        return eir::eCompResult::EQUAL;
+    });
+
     typedef sliceOfData <std::uint32_t> rvaSlice_t;
 
     rvaSlice_t requestSlice( rva, regionSize );
 
-    auto iter = this->baseRelocs.lower_bound( baserelocRemoveIndex );
+    decltype(this->baseRelocs)::iterator iter( foundMinimumNode );
 
-    while ( iter != this->baseRelocs.end() )
+    while ( !iter.IsEnd() )
     {
+        decltype(this->baseRelocs)::Node *curNode = iter.Resolve();
+
         bool doRemove = false;
         {
-            PEBaseReloc& relocDict = iter->second;
+            PEBaseReloc& relocDict = curNode->GetValue();
 
             // Check the relationship to this item.
             rvaSlice_t dictSlice( relocDict.offsetOfReloc, baserelocChunkSize );
 
-            rvaSlice_t::eIntersectionResult intResult = requestSlice.intersectWith( dictSlice );
+            eir::eIntersectionResult intResult = requestSlice.intersectWith( dictSlice );
 
-            if ( rvaSlice_t::isFloatingIntersect( intResult ) )
+            if ( eir::isFloatingIntersect( intResult ) )
             {
                 // We are finished.
                 break;
             }
-            else if ( intResult == rvaSlice_t::INTERSECT_ENCLOSING ||
-                      intResult == rvaSlice_t::INTERSECT_EQUAL )
+            else if ( intResult == eir::INTERSECT_ENCLOSING ||
+                      intResult == eir::INTERSECT_EQUAL )
             {
                 // The request is enclosing the base relocation block.
                 // We must get rid of it entirely.
                 doRemove = true;
             }
-            else if ( intResult == rvaSlice_t::INTERSECT_INSIDE ||
-                      intResult == rvaSlice_t::INTERSECT_BORDER_END ||
-                      intResult == rvaSlice_t::INTERSECT_BORDER_START )
+            else if ( intResult == eir::INTERSECT_INSIDE ||
+                      intResult == eir::INTERSECT_BORDER_END ||
+                      intResult == eir::INTERSECT_BORDER_START )
             {
                 // We remove single items from this base relocation entry.
+                size_t numItems = relocDict.items.GetCount();
+                size_t n = 0;
+
+                while ( n < numItems )
                 {
-                    auto item_iter = relocDict.items.begin();
+                    PEBaseReloc::item& dictItem = relocDict.items[ n ];
 
-                    while ( item_iter != relocDict.items.end() )
+                    // TODO: maybe make dict items size after what memory they actually take.
+
+                    rvaSlice_t itemSlice( dictSlice.GetSliceStartPoint() + dictItem.offset, 1 );
+
+                    eir::eIntersectionResult itemIntResult = requestSlice.intersectWith( itemSlice );
+
+                    bool shouldRemove = ( eir::isFloatingIntersect( itemIntResult ) == false );
+
+                    if ( shouldRemove )
                     {
-                        PEBaseReloc::item& dictItem = *item_iter;
+                        relocDict.items.RemoveByIndex( n );
 
-                        // TODO: maybe make dict items size after what memory they actually take.
-
-                        rvaSlice_t itemSlice( dictSlice.GetSliceStartPoint() + dictItem.offset, 1 );
-
-                        rvaSlice_t::eIntersectionResult itemIntResult = requestSlice.intersectWith( itemSlice );
-
-                        bool shouldRemove = ( rvaSlice_t::isFloatingIntersect( itemIntResult ) == false );
-
-                        if ( shouldRemove )
-                        {
-                            item_iter = relocDict.items.erase( item_iter );
-                        }
-                        else
-                        {
-                            item_iter++;
-                        }
+                        numItems--;
+                    }
+                    else
+                    {
+                        n++;
                     }
                 }
 
                 // Now see if we can remove an empty dict.
-                if ( relocDict.items.empty() )
+                if ( numItems == 0 )
                 {
                     doRemove = true;
                 }
@@ -124,11 +140,13 @@ void PEFile::RemoveRelocations( std::uint32_t rva, std::uint32_t regionSize )
 
         if ( doRemove )
         {
-            iter = this->baseRelocs.erase( iter );
+            iter.Increment();
+
+            this->baseRelocs.RemoveNode( curNode );
         }
         else
         {
-            iter++;
+            iter.Increment();
         }
     }
     
@@ -147,7 +165,7 @@ void PEFile::OnWriteAbsoluteVA( PESection *writeSect, std::uint32_t sectOff, boo
 
     if ( !needsRelocation )
     {
-        if ( this->baseRelocs.empty() == false )
+        if ( this->baseRelocs.IsEmpty() == false )
         {
             needsRelocation = true;
         }

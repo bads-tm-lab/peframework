@@ -5,9 +5,9 @@
 
 std::uint32_t PEFile::PEExportDir::AddExport( func&& entry )
 {
-    size_t currentIndex = this->functions.size();
+    size_t currentIndex = this->functions.GetCount();
 
-    this->functions.push_back( std::move( entry ) );
+    this->functions.AddToBack( std::move( entry ) );
 
     // We need to rewrite stuff.
     this->allocEntry = PESectionAllocation();
@@ -21,7 +21,7 @@ void PEFile::PEExportDir::MapName( std::uint32_t ordinal, const char *name )
     mappedName newNameMap;
     newNameMap.name = name;
 
-    this->funcNameMap.insert( std::make_pair( std::move( newNameMap ), std::move( ordinal ) ) );
+    this->funcNameMap.Set( std::move( newNameMap ), std::move( ordinal ) );
 
     // Need to recommit memory.
     this->allocEntry = PESectionAllocation();
@@ -30,7 +30,7 @@ void PEFile::PEExportDir::MapName( std::uint32_t ordinal, const char *name )
 
 void PEFile::PEExportDir::RemoveExport( std::uint32_t ordinal )
 {
-    size_t curNumFunctions = this->functions.size();
+    size_t curNumFunctions = this->functions.GetCount();
 
     if ( ordinal >= curNumFunctions )
     {
@@ -42,7 +42,7 @@ void PEFile::PEExportDir::RemoveExport( std::uint32_t ordinal )
         func& expEntry = this->functions[ ordinal ];
         expEntry.isForwarder = false;
         expEntry.expRef = PESectionDataReference();
-        expEntry.forwarder.clear();
+        expEntry.forwarder.Clear();
     }
 
     // Remove all name mappings of this ordinal.
@@ -51,15 +51,19 @@ void PEFile::PEExportDir::RemoveExport( std::uint32_t ordinal )
 
         while ( iter != this->funcNameMap.end() )
         {
-            if ( iter->second == ordinal )
+            auto *curNode = *iter;
+
+            ++iter;
+
+            if ( curNode->GetValue() == ordinal )
             {
-                iter = this->funcNameMap.erase( iter );
+                this->funcNameMap.RemoveNode( curNode );
             }
         }
     }
 }
 
-static inline std::uint32_t ResolveExportOrdinal( const PEFile::PEExportDir& expDir, bool isOrdinal, std::uint32_t ordinal, const std::string& name, bool& hasOrdinal )
+static inline std::uint32_t ResolveExportOrdinal( const PEFile::PEExportDir& expDir, bool isOrdinal, std::uint32_t ordinal, const peString <char>& name, bool& hasOrdinal )
 {
     if ( isOrdinal )
     {
@@ -68,24 +72,24 @@ static inline std::uint32_t ResolveExportOrdinal( const PEFile::PEExportDir& exp
         return ( ordinal - expDir.ordinalBase );
     }
 
-    auto findIter = expDir.funcNameMap.find( name );
+    auto findIter = expDir.funcNameMap.Find( name );
 
-    if ( findIter != expDir.funcNameMap.end() )
+    if ( findIter != nullptr )
     {
         hasOrdinal = true;
         // Internally we do not store with ordinal base offset.
-        return (std::uint32_t)( findIter->second );
+        return (std::uint32_t)( findIter->GetValue() );
     }
 
     return false;
 }
 
-PEFile::PEExportDir::func* PEFile::PEExportDir::ResolveExport( bool isOrdinal, std::uint32_t ordinal, const std::string& name )
+PEFile::PEExportDir::func* PEFile::PEExportDir::ResolveExport( bool isOrdinal, std::uint32_t ordinal, const peString <char>& name )
 {
     bool hasImportOrdinal = false;
     size_t impOrdinal = ResolveExportOrdinal( *this, isOrdinal, ordinal, name, hasImportOrdinal );
 
-    if ( hasImportOrdinal && impOrdinal < this->functions.size() )
+    if ( hasImportOrdinal && impOrdinal < this->functions.GetCount() )
     {
         PEFile::PEExportDir::func& expFunc = this->functions[ impOrdinal ];
 

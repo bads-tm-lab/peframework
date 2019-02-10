@@ -12,40 +12,43 @@ PEFile::PEDebugDesc& PEFile::AddDebugData( std::uint32_t debugType )
     {
         PEDebugDesc newDesc;
         newDesc.characteristics = 0;
-        newDesc.timeDateStamp = (std::uint32_t)time( NULL );
+        newDesc.timeDateStamp = (std::uint32_t)time( nullptr );
         newDesc.majorVer = 0;
         newDesc.minorVer = 0;
         newDesc.type = debugType;
     
-        this->debugDescs.push_back( std::move( newDesc ) );
+        this->debugDescs.AddToBack( std::move( newDesc ) );
 
         // Invalidate the PE native array.
         this->debugDescsAlloc = PESectionAllocation();
     }
 
     // Return it.
-    return this->debugDescs.back();
+    return this->debugDescs.GetBack();
 }
 
 bool PEFile::ClearDebugDataOfType( std::uint32_t debugType )
 {
     bool hasChanged = false;
 
-    auto iter = this->debugDescs.begin();
+    size_t numDebugDescs = this->debugDescs.GetCount();
+    size_t n = 0;
 
-    while ( iter != this->debugDescs.end() )
+    while ( n < numDebugDescs )
     {
-        PEDebugDesc& debugInfo = *iter;
+        PEDebugDesc& debugInfo = this->debugDescs[ n ];
 
         if ( debugInfo.type == debugType )
         {
-            iter = this->debugDescs.erase( iter );
+            this->debugDescs.RemoveByIndex( n );
+
+            numDebugDescs--;
 
             hasChanged = true;
         }
         else
         {
-            iter++;
+            n++;
         }
     }
 

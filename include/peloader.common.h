@@ -6,6 +6,12 @@
 #include "peexcept.h"
 
 #include <sdk/MemoryUtils.h>
+#include <sdk/MetaHelpers.h>
+
+#include <sdk/Vector.h>
+#include <sdk/String.h>
+#include <sdk/Map.h>
+#include <sdk/Set.h>
 
 // Machine types.
 
@@ -147,5 +153,21 @@ private:
 };
 
 }; //PEloader
+
+// Global static memory allocator.
+DEFINE_HEAP_ALLOC( PEGlobalStaticAllocator );
+
+// Runtime types.
+template <typename valueType>
+using peVector = eir::Vector <valueType, PEGlobalStaticAllocator>;
+
+template <typename charType>
+using peString = eir::String <charType, PEGlobalStaticAllocator>;
+
+template <typename keyType, typename valueType, typename comparatorType = eir::MapDefaultComparator>
+using peMap = eir::Map <keyType, valueType, PEGlobalStaticAllocator, comparatorType>;
+
+template <typename valueType, typename comparatorType>
+using peSet = eir::Set <valueType, PEGlobalStaticAllocator, comparatorType>;
 
 #endif //_PELOADER_COMMON_HEADER_

@@ -3,42 +3,44 @@
 
 #include <sdk/UniChar.h>
 
+#include <sdk/NumericFormat.h>
+
 // Generic finder routine.
-PEFile::PEResourceItem* PEFile::PEResourceDir::FindItem( bool isIdentifierName, const std::u16string& name, std::uint16_t identifier )
+PEFile::PEResourceItem* PEFile::PEResourceDir::FindItem( bool isIdentifierName, const peString <char16_t>& name, std::uint16_t identifier )
 {
     if ( isIdentifierName )
     {
-        auto findIter = this->idChildren.find( identifier );
+        auto *findIter = this->idChildren.Find( identifier );
 
-        if ( findIter != this->idChildren.end() )
+        if ( findIter != nullptr )
         {
-            return *findIter;
+            return findIter->GetValue();
         }
     }
     else
     {
-        auto findIter = this->namedChildren.find( name );
+        auto *findIter = this->namedChildren.Find( name );
 
-        if ( findIter != this->namedChildren.end() )
+        if ( findIter != nullptr )
         {
-            return *findIter;
+            return findIter->GetValue();
         }
     }
 
     return nullptr;
 }
 
-std::wstring PEFile::PEResourceItem::GetName( void ) const
+peString <wchar_t> PEFile::PEResourceItem::GetName( void ) const
 {
     if ( !this->hasIdentifierName )
     {
-        return CharacterUtil::ConvertStrings <char16_t, wchar_t> ( this->name );
+        return CharacterUtil::ConvertStrings <char16_t, wchar_t, PEGlobalStaticAllocator> ( this->name );
     }
     else
     {
-        std::wstring charBuild( L"(ident:" );
+        peString <wchar_t> charBuild( L"(ident:" );
 
-        charBuild += std::to_wstring( this->identifier );
+        charBuild += eir::to_string <wchar_t, PEGlobalStaticAllocator> ( this->identifier );
 
         charBuild += L")";
 
@@ -50,11 +52,11 @@ bool PEFile::PEResourceDir::AddItem( PEFile::PEResourceItem *theItem )
 {
     if ( theItem->hasIdentifierName )
     {
-        this->idChildren.insert( theItem );
+        this->idChildren.Insert( theItem );
     }
     else
     {
-        this->namedChildren.insert( theItem );
+        this->namedChildren.Insert( theItem );
     }
 
     return true;
@@ -64,22 +66,22 @@ bool PEFile::PEResourceDir::RemoveItem( const PEFile::PEResourceItem *theItem )
 {
     if ( theItem->hasIdentifierName )
     {
-        auto findIter = this->idChildren.find( theItem );
+        auto *findIter = this->idChildren.Find( theItem );
 
-        if ( findIter != this->idChildren.end() )
+        if ( findIter != nullptr )
         {
-            this->idChildren.erase( findIter );
+            this->idChildren.RemoveNode( findIter );
             
             return true;
         }
     }
     else
     {
-        auto findIter = this->namedChildren.find( theItem );
+        auto *findIter = this->namedChildren.Find( theItem );
 
-        if ( findIter != this->namedChildren.end() )
+        if ( findIter != nullptr )
         {
-            this->namedChildren.erase( findIter );
+            this->namedChildren.RemoveNode( findIter );
 
             return true;
         }

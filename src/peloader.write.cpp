@@ -2,8 +2,6 @@
 
 #include "peloader.internal.hxx"
 
-#include <unordered_map>
-
 using namespace PEloader;
 
 // Writing helpers.
@@ -79,12 +77,14 @@ AINLINE void writeContent( peFileAlloc& fileSpaceAlloc, PEStream *peStream, peFi
 template <typename keyType, typename mapType>
 inline decltype( auto ) FindMapValue( mapType& map, const keyType& key )
 {
-    const auto& foundIter = map.find( key );
+    auto *foundIter = map.Find( key );
 
-    if ( foundIter == map.end() )
-        return (decltype(&foundIter->second))nullptr;
+    if ( foundIter == nullptr )
+    {
+        return (decltype(&foundIter->GetValue()))nullptr;
+    }
 
-    return &foundIter->second;
+    return &foundIter->GetValue();
 }
 
 template <typename numberType>
@@ -113,14 +113,14 @@ struct item_allocInfo
     inline ~item_allocInfo( void )
     {
         // Delete all possible child entries.
-        for ( const auto& pairItem : this->children )
+        for ( auto *node : this->children )
         {
-            item_allocInfo *childItem = pairItem.second;
+            item_allocInfo *childItem = node->GetValue();
 
             delete childItem;
         }
 
-        this->children.clear();
+        this->children.Clear();
     }
 
     inline item_allocInfo& operator = ( const item_allocInfo& right ) = delete;
@@ -131,7 +131,7 @@ struct item_allocInfo
     std::uint32_t name_off;         // Offset to the name string (unicode); only valid if child
     std::uint32_t dataitem_off;     // Offset to the resource data item info; only valid if leaf
 
-    std::unordered_map <const PEFile::PEResourceItem*, item_allocInfo*> children;
+    peMap <const PEFile::PEResourceItem*, item_allocInfo*> children;
 };
 
 template <typename callbackType>
@@ -141,11 +141,11 @@ static AINLINE void ForAllResourceItems( const PEFile::PEResourceDir& resDir, it
     resDir.ForAllChildren(
         [&]( const PEFile::PEResourceItem *childItem, bool hasIdentiferName )
     {
-        const auto& childAllocItemNode = allocItem.children.find( childItem );
+        auto *childAllocItemNode = allocItem.children.Find( childItem );
 
-        assert( childAllocItemNode != allocItem.children.end() );
+        assert( childAllocItemNode != nullptr );
 
-        item_allocInfo& childAllocItem = *childAllocItemNode->second;
+        item_allocInfo& childAllocItem = *childAllocItemNode->GetValue();
 
         // Execute for us.
         cb( childItem, childAllocItem );
@@ -180,7 +180,7 @@ void PEFile::PEFileSpaceData::ResolveDataPhaseAllocation( std::uint32_t& rvaOut,
     else if ( storageType == eStorageType::FILE )
     {
         // Wait until later.
-        sizeOut = (std::uint32_t)this->fileRef.size();
+        sizeOut = (std::uint32_t)this->fileRef.GetCount();
         rvaOut = 0;   // will stay zero.
     }
     else
@@ -203,23 +203,23 @@ std::uint32_t PEFile::PEFileSpaceData::ResolveFinalizationPhase( PEStream *peStr
         // Calculate the file pointer from the allocated offsets for the sections.
         PESection *dataSect = this->sectRef.GetSection();
 
-        const auto& fileSectAllocNode = sectFileAlloc.find( dataSect->GetVirtualAddress() );
+        auto *fileSectAllocNode = sectFileAlloc.Find( dataSect->GetVirtualAddress() );
 
-        assert( fileSectAllocNode != sectFileAlloc.end() );
+        assert( fileSectAllocNode != nullptr );
 
-        const sect_allocInfo& fileSectAllocInfo = fileSectAllocNode->second;
+        const sect_allocInfo& fileSectAllocInfo = fileSectAllocNode->GetValue();
 
         fileDataOff = ( fileSectAllocInfo.alloc_off + this->sectRef.ResolveInternalOffset( 0 ) );
     }
     else if ( storageType == eStorageType::FILE )
     {
         // For this we need to allocate new space on the executable.
-        std::uint32_t dataSize = (std::uint32_t)this->fileRef.size();
+        std::uint32_t dataSize = (std::uint32_t)this->fileRef.GetCount();
 
         fileDataOff = allocMan.AllocateAny( dataSize, 1 );
 
         // Also write it.
-        PEWrite( peStream, fileDataOff, dataSize, this->fileRef.data() );
+        PEWrite( peStream, fileDataOff, dataSize, this->fileRef.GetData() );
     }
 
     return fileDataOff;
@@ -242,7 +242,7 @@ bool PEFile::PEFileSpaceData::NeedsFinalizationPhase( void ) const
 
 void PEFile::PEImportDesc::AllocatePEImportFunctionsData( PESection& writeSect, functions_t& functionList )
 {
-    size_t numFuncs = functionList.size();
+    size_t numFuncs = functionList.GetCount();
 
     for ( size_t n = 0; n < numFuncs; n++ )
     {
@@ -254,7 +254,7 @@ void PEFile::PEImportDesc::AllocatePEImportFunctionsData( PESection& writeSect, 
             if ( funcInfo.nameAllocEntry.IsAllocated() == false )
             {
                 // Dynamic size of the name entry, since it contains optional ordinal hint.
-                std::uint32_t funcNameWriteCount = (std::uint32_t)( funcInfo.name.size() + 1 );
+                std::uint32_t funcNameWriteCount = (std::uint32_t)( funcInfo.name.GetLength() + 1 );
                 std::uint32_t nameEntrySize = ( sizeof(std::uint16_t) + funcNameWriteCount );
 
                 // Decide if we have to write a trailing zero byte, as required by the documentation.
@@ -275,7 +275,7 @@ void PEFile::PEImportDesc::AllocatePEImportFunctionsData( PESection& writeSect, 
                 nameAllocEntry.WriteToSection( &funcInfo.ordinal_hint, sizeof(funcInfo.ordinal_hint), 0 );
 
                 // Actual name.
-                nameAllocEntry.WriteToSection( funcInfo.name.c_str(), funcNameWriteCount, sizeof(std::uint16_t) );
+                nameAllocEntry.WriteToSection( funcInfo.name.GetConstString(), funcNameWriteCount, sizeof(std::uint16_t) );
 
                 if ( requiresTrailZeroByte )
                 {
@@ -295,7 +295,7 @@ PEFile::PESectionAllocation PEFile::PEImportDesc::WritePEImportFunctions( PESect
     // The size of an entry depends on PE32 or PE32+.
     std::uint32_t entrySize = GetPEPointerSize( isExtendedFormat );
 
-    std::uint32_t numFuncs = (std::uint32_t)functionList.size();
+    std::uint32_t numFuncs = (std::uint32_t)functionList.GetCount();
 
     // We need to end of the array with a zero-entry to describe the end.
     std::uint32_t actualArrayItemCount = ( numFuncs + 1 );
@@ -379,45 +379,45 @@ void PEFile::CommitDataDirectories( void )
             // * EXPORT DIRECTORY.
             PEExportDir& expDir = this->exportDir;
 
-            if ( expDir.chars != 0 || expDir.name.empty() == false || expDir.functions.empty() == false )
+            if ( expDir.chars != 0 || expDir.name.IsEmpty() == false || expDir.functions.GetCount() != 0 )
             {
                 // Commit all export directory name entries.
 
                 // Determine if we need to allocate a function name mapping.
-                std::uint32_t numNamedEntries = (std::uint32_t)expDir.funcNameMap.size();
+                std::uint32_t numNamedEntries = (std::uint32_t)expDir.funcNameMap.GetKeyValueCount();
 
-                for ( auto& nameMapIter : expDir.funcNameMap )
+                for ( auto *nameMapIter : expDir.funcNameMap )
                 {
-                    const PEExportDir::mappedName& nameMap = nameMapIter.first;
+                    const PEExportDir::mappedName& nameMap = nameMapIter->GetKey();
 
                     // Make sure we wrote the name into PE virtual memory.
                     if ( !nameMap.nameAllocEntry.IsAllocated() )
                     {
                         // Allocate an entry for the name.
-                        const std::uint32_t strSize = (std::uint32_t)( nameMap.name.size() + 1 );
+                        const std::uint32_t strSize = (std::uint32_t)( nameMap.name.GetLength() + 1 );
                     
                         PESectionAllocation nameAllocEntry;
                         rdonlySect.Allocate( nameAllocEntry, strSize, 1 );
 
-                        nameAllocEntry.WriteToSection( nameMap.name.c_str(), strSize );
+                        nameAllocEntry.WriteToSection( nameMap.name.GetConstString(), strSize );
 
                         // Remember the completed data.
                         nameMap.nameAllocEntry = std::move( nameAllocEntry );
                     }
                 }
 
-                const std::uint32_t numExportEntries = (std::uint32_t)expDir.functions.size();
+                const std::uint32_t numExportEntries = (std::uint32_t)expDir.functions.GetCount();
 
                 // Commit the export module name.
                 if ( !expDir.nameAllocEntry.IsAllocated() )
                 {
-                    const std::uint32_t moduleNameSize = (std::uint32_t)( expDir.name.size() + 1 );
+                    const std::uint32_t moduleNameSize = (std::uint32_t)( expDir.name.GetLength() + 1 );
 
                     PESectionAllocation moduleNameAlloc;
                     rdonlySect.Allocate( moduleNameAlloc, moduleNameSize, 1 );
 
                     // Write module name.
-                    moduleNameAlloc.WriteToSection( expDir.name.c_str(), moduleNameSize );
+                    moduleNameAlloc.WriteToSection( expDir.name.GetConstString(), moduleNameSize );
 
                     expDir.nameAllocEntry = std::move( moduleNameAlloc );
                 }
@@ -434,7 +434,7 @@ void PEFile::CommitDataDirectories( void )
                         std::uint32_t forwarder_off;
                     };
             
-                    std::unordered_map <size_t, expfunc_allocInfo> allocInfos;
+                    peMap <size_t, expfunc_allocInfo> allocInfos;
 
                     // Allocate forwarder RVAs.
                     PESectionAllocation expDirAlloc;
@@ -450,7 +450,7 @@ void PEFile::CommitDataDirectories( void )
                             if ( funcEntry.isForwarder )
                             {
                                 // Allocate an entry for the forwarder.
-                                const std::uint32_t strSize = (std::uint32_t)( funcEntry.forwarder.size() + 1 );
+                                const std::uint32_t strSize = (std::uint32_t)( funcEntry.forwarder.GetLength() + 1 );
 
                                 std::uint32_t forwOffset = expAllocMan.AllocateAny( strSize, 1 );
 
@@ -535,15 +535,15 @@ void PEFile::CommitDataDirectories( void )
 
                         std::uint32_t index = 0;
 
-                        for ( const auto& nameMapIter : expDir.funcNameMap )
+                        for ( auto *nameMapIter : expDir.funcNameMap )
                         {
-                            size_t funcIndex = nameMapIter.second;
+                            size_t funcIndex = nameMapIter->GetValue();
 
                             // Write the name.
                             std::uint16_t ordinal = (std::uint16_t)funcIndex;
 
                             // Write this name map entry.
-                            const PEExportDir::mappedName& nameMap = nameMapIter.first;
+                            const PEExportDir::mappedName& nameMap = nameMapIter->GetKey();
 
                             const std::uint32_t namePtrOff = ( sizeof(std::uint32_t) * index );
                             const std::uint32_t ordOff = ( sizeof(std::uint16_t) * index );
@@ -568,7 +568,7 @@ void PEFile::CommitDataDirectories( void )
             // * IMPORT DIRECTORY.
             auto& importDescs = this->imports;
 
-            std::uint32_t numImportDescriptors = (std::uint32_t)importDescs.size();
+            std::uint32_t numImportDescriptors = (std::uint32_t)importDescs.GetCount();
 
             if ( numImportDescriptors > 0 )
             {
@@ -581,7 +581,7 @@ void PEFile::CommitDataDirectories( void )
                     // either ordinal or name entries.
                     auto& funcs = impDesc.funcs;
 
-                    if ( funcs.empty() == false )
+                    if ( funcs.GetCount() != 0 )
                     {
                         // First the sub-data.
                         impDesc.AllocatePEImportFunctionsData( rdonlySect, funcs );
@@ -673,8 +673,8 @@ void PEFile::CommitDataDirectories( void )
                                 std::uint32_t itemSize = sizeof(PEStructures::IMAGE_RESOURCE_DIRECTORY);
 
                                 // and the items following it.
-                                size_t numNamedChildren = itemDir->namedChildren.size();
-                                size_t numIDChildren = itemDir->idChildren.size();
+                                size_t numNamedChildren = itemDir->namedChildren.GetValueCount();
+                                size_t numIDChildren = itemDir->idChildren.GetValueCount();
 
                                 std::uint32_t numChildren =
                                     (std::uint32_t)numNamedChildren +
@@ -703,7 +703,7 @@ void PEFile::CommitDataDirectories( void )
                                     try
                                     {
                                         // Register this child alloc item.
-                                        infoOut.children.insert( std::make_pair( childItem, memChildAlloc ) );
+                                        infoOut.children.Set( childItem, memChildAlloc );
                                     }
                                     catch( ... )
                                     {
@@ -730,7 +730,7 @@ void PEFile::CommitDataDirectories( void )
 
                                     try
                                     {
-                                        infoOut.children.insert( std::make_pair( childItem, memChildAlloc ) );
+                                        infoOut.children.Set( childItem, memChildAlloc );
                                     }
                                     catch( ... )
                                     {
@@ -757,7 +757,7 @@ void PEFile::CommitDataDirectories( void )
                                 // Any name string to allocate?
                                 if ( childItem->hasIdentifierName == false )
                                 {
-                                    const std::uint32_t nameItemCount = (std::uint32_t)( childItem->name.size() );
+                                    const std::uint32_t nameItemCount = (std::uint32_t)( childItem->name.GetLength() );
 
                                     std::uint32_t nameDataSize = ( nameItemCount * sizeof(char16_t) );
 
@@ -859,8 +859,8 @@ void PEFile::CommitDataDirectories( void )
                             nativeResDir.MinorVersion = writeNode.minorVersion;
                         
                             // Count how many named and how many children we have.
-                            size_t numNamedEntries = writeNode.namedChildren.size();
-                            size_t numIDEntries = writeNode.idChildren.size();
+                            size_t numNamedEntries = writeNode.namedChildren.GetValueCount();
+                            size_t numIDEntries = writeNode.idChildren.GetValueCount();
 
                             nativeResDir.NumberOfNamedEntries = (std::uint16_t)numNamedEntries;
                             nativeResDir.NumberOfIdEntries = (std::uint16_t)numIDEntries;
@@ -877,11 +877,11 @@ void PEFile::CommitDataDirectories( void )
 
                             for ( const PEResourceItem *childItem : writeNode.namedChildren )
                             {
-                                const auto& childAllocInfoNode = allocNode.children.find( childItem );
+                                auto *childAllocInfoNode = allocNode.children.Find( childItem );
 
-                                assert( childAllocInfoNode != allocNode.children.end() );
+                                assert( childAllocInfoNode != nullptr );
 
-                                const item_allocInfo& childAllocInfo = *childAllocInfoNode->second;
+                                const item_allocInfo& childAllocInfo = *childAllocInfoNode->GetValue();
 
                                 // We write a link entry for this child.
                                 PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY lnkEntry = { 0 };
@@ -895,12 +895,12 @@ void PEFile::CommitDataDirectories( void )
                                     assert( nameWriteOff != 0 );    // invalid because zero is already root directory info offset.
 
                                     // First store the amount of characters.
-                                    const std::uint16_t numWriteItems = (std::uint16_t)childItem->name.size();
+                                    const std::uint16_t numWriteItems = (std::uint16_t)childItem->name.GetLength();
 
                                     writeBuf.WriteToSection( &numWriteItems, sizeof(numWriteItems), nameWriteOff );
 
                                     // Write the name correctly.
-                                    writeBuf.WriteToSection( childItem->name.c_str(), numWriteItems * sizeof(char16_t), nameWriteOff + sizeof(std::uint16_t) );
+                                    writeBuf.WriteToSection( childItem->name.GetConstString(), numWriteItems * sizeof(char16_t), nameWriteOff + sizeof(std::uint16_t) );
 
                                     // Give the offset.
                                     lnkEntry.NameOffset = childAllocInfo.name_off;
@@ -941,11 +941,11 @@ void PEFile::CommitDataDirectories( void )
                             // Now all ID ones.
                             for ( const PEResourceItem *childItem : writeNode.idChildren )
                             {
-                                const auto& childAllocInfoNode = allocNode.children.find( childItem );
+                                auto *childAllocInfoNode = allocNode.children.Find( childItem );
 
-                                assert( childAllocInfoNode != allocNode.children.end() );
+                                assert( childAllocInfoNode != nullptr );
 
-                                const item_allocInfo& childAllocInfo = *childAllocInfoNode->second;
+                                const item_allocInfo& childAllocInfo = *childAllocInfoNode->GetValue();
 
                                 // We write a link entry for this child.
                                 PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY lnkEntry = { 0 };
@@ -1024,7 +1024,7 @@ void PEFile::CommitDataDirectories( void )
             // * Exception Information.
             const auto& exceptRFs = this->exceptRFs;
 
-            std::uint32_t numExceptEntries = (std::uint32_t)exceptRFs.size();
+            std::uint32_t numExceptEntries = (std::uint32_t)exceptRFs.GetCount();
 
             if ( numExceptEntries != 0 )
             {
@@ -1070,7 +1070,7 @@ void PEFile::CommitDataDirectories( void )
             //       phase two of the debug write phase is after sections are written down.
             const auto& debugDescs = this->debugDescs;
 
-            std::uint32_t numDebugDescs = (std::uint32_t)debugDescs.size();
+            std::uint32_t numDebugDescs = (std::uint32_t)debugDescs.GetCount();
             
             if ( numDebugDescs > 0 )
             {
@@ -1358,7 +1358,7 @@ void PEFile::CommitDataDirectories( void )
             // * DELAY LOAD IMPORTS.
             auto& delayLoads = this->delayLoads;
 
-            std::uint32_t numDelayLoads = (std::uint32_t)delayLoads.size();
+            std::uint32_t numDelayLoads = (std::uint32_t)delayLoads.GetCount();
 
             if ( numDelayLoads > 0 )
             {
@@ -1384,7 +1384,7 @@ void PEFile::CommitDataDirectories( void )
                     // Write the import names.
                     auto& funcs = delayDesc.importNames;
 
-                    if ( funcs.empty() == false )
+                    if ( funcs.GetCount() != 0 )
                     {
                         // First the sub-data.
                         PEImportDesc::AllocatePEImportFunctionsData( rdonlySect, funcs );
@@ -1479,7 +1479,7 @@ void PEFile::CommitDataDirectories( void )
         }
 
         // Since we have committed the RVAs into binary memory, no need for the meta-data anymore.
-        item->placedOffsets.clear();
+        item->placedOffsets.Clear();
 
     LIST_FOREACH_END
 
@@ -1494,7 +1494,7 @@ void PEFile::CommitDataDirectories( void )
         // Has to be written last because commit-phase may create new relocations!
         const auto& baseRelocs = this->baseRelocs;
 
-        if ( baseRelocs.empty() == false )
+        if ( baseRelocs.IsEmpty() == false )
         {
             // Do we even need a new base reloc data directory?
             if ( this->baseRelocAllocEntry.IsAllocated() == false )
@@ -1502,11 +1502,11 @@ void PEFile::CommitDataDirectories( void )
                 // We first calculate how big a directory we need.
                 std::uint32_t baseRelocDirSize = 0;
 
-                for ( const auto& relocNode : baseRelocs )
+                for ( auto *relocNode : baseRelocs )
                 {
-                    const PEBaseReloc& relocInfo = relocNode.second;
+                    const PEBaseReloc& relocInfo = relocNode->GetValue();
 
-                    std::uint32_t numEntries = (std::uint32_t)relocInfo.items.size();
+                    std::uint32_t numEntries = (std::uint32_t)relocInfo.items.GetCount();
 
                     // This is the header, and the same-sized reloc entries.
                     std::uint32_t chunkSize = sizeof(PEStructures::IMAGE_BASE_RELOCATION) + numEntries * sizeof(PEStructures::IMAGE_BASE_RELOC_TYPE_ITEM);
@@ -1521,11 +1521,11 @@ void PEFile::CommitDataDirectories( void )
                 // guarranteed to be sorted-by-address!
                 std::uint32_t curWriteOff = 0;
 
-                for ( const auto& relocNode : baseRelocs )
+                for ( auto *relocNode : baseRelocs )
                 {
-                    const PEBaseReloc& relocInfo = relocNode.second;
+                    const PEBaseReloc& relocInfo = relocNode->GetValue();
 
-                    std::uint32_t numEntries = (std::uint32_t)relocInfo.items.size();
+                    std::uint32_t numEntries = (std::uint32_t)relocInfo.items.GetCount();
 
                     // Calculate the size of this block.
                     // We kind of did above already.
@@ -1652,7 +1652,7 @@ void PEFile::WriteToStream( PEStream *peStream )
     FileSpaceAllocMan allocMan;
 
     // Allocate and write the DOS header.
-    allocMan.AllocateAt( 0, sizeof( PEStructures::IMAGE_DOS_HEADER ) + (std::uint32_t)this->dos_data.progData.size() );
+    allocMan.AllocateAt( 0, sizeof( PEStructures::IMAGE_DOS_HEADER ) + (std::uint32_t)this->dos_data.progData.GetCount() );
 
     PEStructures::IMAGE_DOS_HEADER dos_header;
     dos_header.e_magic = PEL_IMAGE_DOS_SIGNATURE;
@@ -1762,11 +1762,11 @@ void PEFile::WriteToStream( PEStream *peStream )
                     allocInfo.alloc_off = sectOffset;
 
                     // For the storage we assume that the virtual address cannot change here.
-                    sect_allocMap.insert( std::make_pair( sectVirtAddr, std::move( allocInfo ) ) );
+                    sect_allocMap.Set( sectVirtAddr, std::move( allocInfo ) );
                 }
 
                 PEStructures::IMAGE_SECTION_HEADER header;
-                strncpy( (char*)header.Name, item->shortName.c_str(), countof(header.Name) );
+                strncpy( (char*)header.Name, item->shortName.GetConstString(), countof(header.Name) );
                 header.VirtualAddress = sectVirtAddr;
                 header.Misc.VirtualSize = allocVirtualSize;
                 header.SizeOfRawData = rawDataSize;
@@ -1802,11 +1802,11 @@ void PEFile::WriteToStream( PEStream *peStream )
             if ( PESection *debugDescsSection = debugDescsAlloc.GetSection() )
             {
                 // Get the allocation info.
-                const auto& allocInfoNode = sect_allocMap.find( debugDescsSection->GetVirtualAddress() );
+                auto *allocInfoNode = sect_allocMap.Find( debugDescsSection->GetVirtualAddress() );
 
-                assert( allocInfoNode != sect_allocMap.end() );
+                assert( allocInfoNode != nullptr );
 
-                const sect_allocInfo& sectAllocInfo = allocInfoNode->second;
+                const sect_allocInfo& sectAllocInfo = allocInfoNode->GetValue();
 
                 // Get the written offset to the debug descriptors array.
                 std::uint32_t fileDebugArrayOff = ( sectAllocInfo.alloc_off + debugDescsAlloc.ResolveInternalOffset( 0 ) );
@@ -1814,7 +1814,7 @@ void PEFile::WriteToStream( PEStream *peStream )
                 // Process all debug descriptors.
                 auto& debugDescs = this->debugDescs;
 
-                const std::uint32_t numDebugDescs = (std::uint32_t)debugDescs.size();
+                const std::uint32_t numDebugDescs = (std::uint32_t)debugDescs.GetCount();
 
                 for ( std::uint32_t n = 0; n < numDebugDescs; n++ )
                 {
@@ -1840,7 +1840,7 @@ void PEFile::WriteToStream( PEStream *peStream )
         {
             PEStructures::IMAGE_DATA_DIRECTORY& boundImpDir = peDataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT ];
 
-            size_t numDesc = boundImports.size();
+            size_t numDesc = boundImports.GetCount();
 
             std::uint32_t boundImp_peSize = 0;
             std::uint32_t boundImp_peOff = 0;
@@ -1853,10 +1853,11 @@ void PEFile::WriteToStream( PEStream *peStream )
                 {
                     std::uint16_t DLLName_allocOff;
 
-                    std::vector <boundImp_allocInfo> forw_infos;
+                    peVector <boundImp_allocInfo> forw_infos;
                 };
 
-                std::vector <boundImp_allocInfo> allocInfo_boundImports( numDesc );
+                peVector <boundImp_allocInfo> allocInfo_boundImports;
+                allocInfo_boundImports.Resize( numDesc );
 
                 // We have a nasty recursive scheme.
                 struct helpers
@@ -1879,17 +1880,17 @@ void PEFile::WriteToStream( PEStream *peStream )
                         boundImp_allocInfo& ainfoOut
                     )
                     {
-                        size_t forw_entryCount = boundImp.forw_bindings.size();
+                        size_t forw_entryCount = boundImp.forw_bindings.GetCount();
 
                         // Actually allocate the DLLName strings.
                         {
-                            std::uint32_t DLLName_allocSize = (std::uint32_t)( boundImp.DLLName.size() + 1 );
+                            std::uint32_t DLLName_allocSize = (std::uint32_t)( boundImp.DLLName.GetLength() + 1 );
 
                             ainfoOut.DLLName_allocOff = allocMan.AllocateAny( DLLName_allocSize, 1 );
                         }
 
                         // Go for all forwardings.
-                        ainfoOut.forw_infos.resize( forw_entryCount );
+                        ainfoOut.forw_infos.Resize( forw_entryCount );
 
                         for ( size_t n = 0; n < forw_entryCount; n++ )
                         {
@@ -1903,7 +1904,7 @@ void PEFile::WriteToStream( PEStream *peStream )
                     static inline void WriteBoundImportDirectory( PEStream *streamOut, std::uint32_t offDirRoot, const PEBoundImport& boundImp, const boundImp_allocInfo& ainfo )
                     {
                         std::uint16_t offModuleName = ainfo.DLLName_allocOff;
-                        size_t numForwRefs = boundImp.forw_bindings.size();
+                        size_t numForwRefs = boundImp.forw_bindings.GetCount();
 
                         // Write the descriptor at the current position.
                         PEStructures::IMAGE_BOUND_IMPORT_DESCRIPTOR nativeDesc;
@@ -1917,12 +1918,12 @@ void PEFile::WriteToStream( PEStream *peStream )
 
                         // Write the DLLName.
                         {
-                            const std::string& DLLName = boundImp.DLLName;
+                            const peString <char>& DLLName = boundImp.DLLName;
 
-                            size_t DLLName_writeSize = ( DLLName.size() + 1 );
+                            size_t DLLName_writeSize = ( DLLName.GetLength() + 1 );
 
                             streamOut->Seek( offDirRoot + ainfo.DLLName_allocOff );
-                            streamOut->Write( DLLName.c_str(), DLLName_writeSize );
+                            streamOut->Write( DLLName.GetConstString(), DLLName_writeSize );
                         }
 
                         streamOut->Seek( saved_fileOff );
@@ -2125,5 +2126,5 @@ void PEFile::WriteToStream( PEStream *peStream )
 
     peStream->Seek( 0 );
     peStream->Write( &dos_header,sizeof( dos_header ) );
-    peStream->Write( this->dos_data.progData.data(), this->dos_data.progData.size() );
+    peStream->Write( this->dos_data.progData.GetData(), this->dos_data.progData.GetCount() );
 }

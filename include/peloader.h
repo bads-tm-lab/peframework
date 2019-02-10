@@ -13,11 +13,7 @@
 #include <sdk/MemoryRaw.h>
 #include <sdk/MemoryUtils.h>
 #include <sdk/MemoryUtils.stream.h>
-
-#include <unordered_map>
-#include <map>
-#include <set>
-#include <functional>
+#include <sdk/UniChar.h>
 
 #include "peloader.common.h"
 
@@ -71,7 +67,7 @@ struct PEFile
         std::uint16_t reserved2[10];
 
         // Actual DOS program data.
-        std::vector <unsigned char> progData;
+        peVector <unsigned char> progData;
     };
     DOSStub dos_data;
 
@@ -134,7 +130,7 @@ public:
 
         PESection( void );
         PESection( const PESection& right ) = delete;
-        PESection( PESection&& right )
+        PESection( PESection&& right ) noexcept
             : shortName( std::move( right.shortName ) ), virtualSize( std::move( right.virtualSize ) ),
               virtualAddr( std::move( right.virtualAddr ) ), relocations( std::move( right.relocations ) ),
               linenumbers( std::move( right.linenumbers ) ), chars( std::move( right.chars ) ),
@@ -156,7 +152,7 @@ public:
         ~PESection( void );
 
     private:
-        inline void moveFromOwnerImage( PESection& right )
+        inline void moveFromOwnerImage( PESection& right ) noexcept
         {
             PESectionMan *ownerImage = right.ownerImage;
 
@@ -170,7 +166,7 @@ public:
             this->ownerImage = ownerImage;
         }
 
-        inline void unregisterOwnerImage( void )
+        inline void unregisterOwnerImage( void ) noexcept
         {
             if ( this->ownerImage )
             {
@@ -180,7 +176,7 @@ public:
             }
         }
 
-        inline void patchSectionPointers( void )
+        inline void patchSectionPointers( void ) noexcept
         {
             // First we want to fix the allocations that have been made on this section.
             LIST_FOREACH_BEGIN( PESectionAllocation, this->dataAllocList.root, sectionNode )
@@ -206,7 +202,7 @@ public:
 
     public:
         inline PESection& operator =( const PESection& right ) = delete;
-        inline PESection& operator =( PESection&& right )
+        inline PESection& operator =( PESection&& right ) noexcept
         {
             // The same default-assignment paradigm could be applied here as
             // for the move constructor.
@@ -230,7 +226,7 @@ public:
 
             // Update PE image.
             {
-                // Make sure we long to no more PE image anymore
+                // Make sure we belong to no more PE image.
                 unregisterOwnerImage(),
 
                 // Set us into the new owner image.
@@ -240,14 +236,14 @@ public:
             return *this;
         }
 
-        std::string shortName;
+        peString <char> shortName;
     private:
         std::uint32_t virtualSize;
         std::uint32_t virtualAddr;
 
     public:
-        std::vector <PERelocation> relocations;
-        std::vector <PELinenumber> linenumbers;
+        peVector <PERelocation> relocations;
+        peVector <PELinenumber> linenumbers;
 
         enum class eAlignment
         {
@@ -326,7 +322,7 @@ public:
             }
 
             inline PESectionReference( const PESectionReference& right ) = delete;
-            inline PESectionReference( PESectionReference&& right )
+            inline PESectionReference( PESectionReference&& right ) noexcept
             {
                 PESection *theSect = right.theSect;
 
@@ -353,7 +349,7 @@ public:
             }
 
             inline PESectionReference& operator = ( const PESectionReference& right ) = delete;
-            inline PESectionReference& operator = ( PESectionReference&& right )
+            inline PESectionReference& operator = ( PESectionReference&& right ) noexcept
             {
                 // This is what can be kind of done by default.
                 // Reason why C++ allows different is that you can optimize this.
@@ -385,7 +381,7 @@ public:
             friend struct PESection;
             friend struct PEDataStream;
 
-            inline PESectionDataReference( void )
+            inline PESectionDataReference( void ) noexcept
             {
                 this->sectOffset = 0;
                 this->dataSize = 0;
@@ -398,7 +394,7 @@ public:
             }
 
             inline PESectionDataReference( const PESectionDataReference& right ) = delete;
-            inline PESectionDataReference( PESectionDataReference&& right )
+            inline PESectionDataReference( PESectionDataReference&& right ) noexcept
                 : PESectionReference( std::move( right ) ),
                   sectOffset( std::move( right.sectOffset ) ), dataSize( std::move( right.dataSize ) )
             {
@@ -472,7 +468,7 @@ public:
 
             PEPlacedOffset( std::uint32_t dataOffset, PESection *targetSect, std::uint32_t offsetIntoSect, eOffsetType offType = eOffsetType::RVA );
 
-            inline PEPlacedOffset( PEPlacedOffset&& right )
+            inline PEPlacedOffset( PEPlacedOffset&& right ) noexcept
             {
                 PESection *targetSect = right.targetSect;
 
@@ -499,7 +495,7 @@ public:
                 }
             }
 
-            inline PEPlacedOffset& operator =( PEPlacedOffset&& right )
+            inline PEPlacedOffset& operator = ( PEPlacedOffset&& right ) noexcept
             {
                 this->~PEPlacedOffset();
 
@@ -507,7 +503,7 @@ public:
 
                 return *this;
             }
-            inline PEPlacedOffset& operator =( const PEPlacedOffset& right ) = delete;
+            inline PEPlacedOffset& operator = ( const PEPlacedOffset& right ) = delete;
 
             // Management API.
             void WriteIntoData( PEFile *peImage, PESection *writeSect, std::uint64_t imageBase ) const;
@@ -522,7 +518,7 @@ public:
             RwListEntry <PEPlacedOffset> targetNode;    // list node inside target section to keep pointer valid.
         };
 
-        std::vector <PEPlacedOffset> placedOffsets;     // list of all RVAs that are in the data of this section.
+        peVector <PEPlacedOffset> placedOffsets;     // list of all RVAs that are in the data of this section.
 
         RwList <PEPlacedOffset> RVAreferalList;     // list of all our placed RVAs that refer to this section.
 
@@ -533,14 +529,14 @@ public:
             // TODO: once we begin differing between PE file version we have to be
             // careful about maintaining allocations.
 
-            inline PESectionAllocation( void )
+            inline PESectionAllocation( void ) noexcept
             {
                 this->theSection = nullptr;
                 this->sectOffset = 0;
                 this->dataSize = 0;
             }
 
-            inline PESectionAllocation( PESectionAllocation&& right )
+            inline PESectionAllocation( PESectionAllocation&& right ) noexcept
                 : sectOffset( std::move( right.sectOffset ) ), dataSize( std::move( right.dataSize ) )
             {
                 PESection *newSectionHost = right.theSection;
@@ -568,7 +564,7 @@ public:
             inline PESectionAllocation( const PESectionAllocation& right ) = delete;
 
         private:
-            inline void removeFromSection( void )
+            inline void removeFromSection( void ) noexcept
             {
                 // If we are allocated on a section, we want to remove ourselves.
                 if ( PESection *sect = this->theSection )
@@ -587,7 +583,7 @@ public:
             }
 
         public:
-            inline void operator = ( PESectionAllocation&& right )
+            inline void operator = ( PESectionAllocation&& right ) noexcept
             {
                 // Actually the same as the destructor does.
                 this->removeFromSection();
@@ -655,7 +651,7 @@ public:
                 return theSection->ResolveRVA( this->sectOffset + offset );
             }
 
-            inline bool IsAllocated( void ) const
+            inline bool IsAllocated( void ) const noexcept
             {
                 return ( theSection != nullptr );
             }
@@ -748,7 +744,7 @@ public:
             return this->virtualSize;
         }
 
-        inline bool IsFinal( void ) const       { return this->isFinal; }
+        inline bool IsFinal( void ) const noexcept      { return this->isFinal; }
 
         // Allocation methods.
         std::uint32_t Allocate( PESectionAllocation& blockMeta, std::uint32_t allocSize, std::uint32_t alignment = sizeof(std::uint32_t) );
@@ -773,7 +769,7 @@ public:
         // final sections.
         RwList <PESectionAllocation> dataAllocList;
 
-        inline bool IsEmpty( void ) const
+        inline bool IsEmpty( void ) const noexcept
         {
             if ( isFinal )
             {
@@ -859,14 +855,14 @@ private:
     // rules if they ought to be "zero padded".
     struct PEDataStream
     {
-        inline PEDataStream( void )
+        inline PEDataStream( void ) noexcept
         {
             this->accessSection = nullptr;
             this->dataOffset = 0;
             this->seek_off = 0;
         }
 
-        inline PEDataStream( PESection *theSection, std::uint32_t dataOffset )
+        inline PEDataStream( PESection *theSection, std::uint32_t dataOffset ) noexcept
         {
             this->accessSection = theSection;
             this->dataOffset = dataOffset;
@@ -878,12 +874,12 @@ private:
             return PEDataStream( dataRef.theSect, dataRef.sectOffset );
         }
 
-        inline void Seek( std::uint32_t offset )
+        inline void Seek( std::uint32_t offset ) noexcept
         {
             this->seek_off = offset;
         }
 
-        inline std::uint32_t Tell( void )
+        inline std::uint32_t Tell( void ) const noexcept
         {
             return this->seek_off;
         }
@@ -968,7 +964,7 @@ private:
 
     template <typename charType>
     inline static void ReadPEString(
-        PEDataStream& stream, std::basic_string <charType>& strOut
+        PEDataStream& stream, peString <charType>& strOut
     )
     {
         while ( true )
@@ -1039,12 +1035,12 @@ private:
                     }
 
                     memSlice_t sectRegion( sectAddr, sectSize );
-
+                    
                     // Our memory request has to be entirely inside of a section.
-                    memSlice_t::eIntersectionResult intResult = requestRegion.intersectWith( sectRegion );
+                    eir::eIntersectionResult intResult = requestRegion.intersectWith( sectRegion );
 
-                    if ( intResult == memSlice_t::INTERSECT_INSIDE ||
-                         intResult == memSlice_t::INTERSECT_EQUAL )
+                    if ( intResult == eir::INTERSECT_INSIDE ||
+                         intResult == eir::INTERSECT_EQUAL )
                     {
                         if ( allocSectOut )
                         {
@@ -1154,7 +1150,7 @@ private:
         }
 
         inline bool ReadPEString(
-            std::uint32_t dataOffset, std::string& strOut,
+            std::uint32_t dataOffset, peString <char>& strOut,
             PESection **sectionOut
         )
         {
@@ -1286,9 +1282,9 @@ private:
             {
                 const memSlice_t peFileRegion( 0, std::numeric_limits <std::int32_t>::max() );
 
-                memSlice_t::eIntersectionResult intResult = memRegion.intersectWith( peFileRegion );
+                eir::eIntersectionResult intResult = memRegion.intersectWith( peFileRegion );
 
-                return ( intResult == memSlice_t::INTERSECT_EQUAL || intResult == memSlice_t::INTERSECT_INSIDE );
+                return ( intResult == eir::INTERSECT_EQUAL || intResult == eir::INTERSECT_INSIDE );
             }
         };
 
@@ -1299,7 +1295,7 @@ private:
     public:
         unsigned int numSections;
 
-        RwList <PESection> sectionList;     // all sections belong to a PEFile MUST have a valid allocation spot.
+        mutable RwList <PESection> sectionList;     // all sections belong to a PEFile MUST have a valid allocation spot.
     };
 
     PESectionMan sections;
@@ -1311,11 +1307,11 @@ private:
         std::uint32_t alloc_off;
     };
 
-    typedef std::unordered_map <std::uint32_t, sect_allocInfo> sect_allocMap_t;
+    typedef peMap <std::uint32_t, sect_allocInfo> sect_allocMap_t;
 
     struct PEFileSpaceData
     {
-        inline PEFileSpaceData( void )
+        inline PEFileSpaceData( void ) noexcept
         {
             // We start out without any storage.
             this->storageType = eStorageType::NONE;
@@ -1368,7 +1364,7 @@ private:
 
         eStorageType storageType;
         PESectionAllocation sectRef;    // valid if storageType == SECTION
-        std::vector <char> fileRef;     // valid if storageType == FILE
+        peVector <char> fileRef;     // valid if storageType == FILE
     };
 
 public:
@@ -1387,24 +1383,30 @@ public:
 
     bool FindSectionSpace( std::uint32_t spanSize, std::uint32_t& addrOut );
 
-    void ForAllSections( std::function <void ( PESection* )> cb );
-    void ForAllSections( std::function <void ( const PESection* )> cb ) const;
+    typedef void (*sectionCallback_t)( PESection* );
+    typedef void (*constSectionCallback_t)( const PESection* );
+
+    DEF_LIST_ITER( sectionIter_t, PESection, sectionNode );
+    DEF_LIST_CONST_ITER( constSectionIter_t, PESection, sectionNode );
+
+    AINLINE sectionIter_t GetSectionIterator( void )                    { return sectionIter_t( this->sections.sectionList ); }
+    AINLINE constSectionIter_t GetConstSectionIterator( void ) const    { return constSectionIter_t( this->sections.sectionList ); }
 
     // More advanced helpers.
     PESectionDataReference ResolveRVAToRef( std::uint32_t rva )     { return this->sections.ResolveRVAToRef( rva ); }
 
     // Simple helpers.
     template <typename charType>
-    static inline PESectionAllocation WriteZeroTermString( PESection& writeSect, const std::basic_string <charType>& string )
+    static inline PESectionAllocation WriteZeroTermString( PESection& writeSect, const peString <charType>& string )
     {
-        const std::uint32_t writeCount = (std::uint32_t)( string.size() + 1 );
+        const std::uint32_t writeCount = (std::uint32_t)( string.GetLength() + 1 );
 
         const std::uint32_t writeSize = ( writeCount * sizeof(charType) );
 
         PESectionAllocation allocEntry;
         writeSect.Allocate( allocEntry, writeSize, sizeof(charType) );
 
-        allocEntry.WriteToSection( string.c_str(), writeSize );
+        allocEntry.WriteToSection( string.GetConstString(), writeSize );
 
         return allocEntry;
     }
@@ -1424,7 +1426,7 @@ public:
         std::uint32_t timeDateStamp = 0;
         std::uint16_t majorVersion = 0;
         std::uint16_t minorVersion = 0;
-        std::string name;   // NOTE: name table is serialized lexigraphically.
+        peString <char> name;   // NOTE: name table is serialized lexigraphically.
         std::uint32_t ordinalBase = 0;
 
         PESectionAllocation nameAllocEntry;
@@ -1435,59 +1437,45 @@ public:
 
             // Mandatory valid fields for each export.
             PESectionDataReference expRef;  // only valid if not a forwarder.
-            std::string forwarder;
+            peString <char> forwarder;
             bool isForwarder;
 
             // definition of ordinal: index into function array.
             // thus it is given implicitly.
         };
-        std::vector <func> functions;
+        peVector <func> functions;
 
         // Name map.
         struct mappedName
         {
-            std::string name;
+            peString <char> name;
             mutable PESectionAllocation nameAllocEntry;
 
-            inline bool operator < ( const std::string& right ) const
+            friend inline bool operator < ( const peString <char>& left, const mappedName& right )
             {
-                return ( this->name < right );
+                return FixedStringCompare(
+                    left.GetConstString(), left.GetLength(),
+                    right.name.GetConstString(), right.name.GetLength(),
+                    true
+                ) == eir::eCompResult::LEFT_LESS;
+            }
+
+            friend inline bool operator < ( const mappedName& left, const peString <char>& right )
+            {
+                return FixedStringCompare(
+                    left.name.GetConstString(), left.name.GetLength(),
+                    right.GetConstString(), right.GetLength(),
+                    true
+                ) == eir::eCompResult::LEFT_LESS;
             }
 
             inline bool operator < ( const mappedName& right ) const
             {
-                return operator < ( right.name );
+                return ( *this < right.name );
             }
         };
 
-    private:
-        struct _funcNameMapComparator
-        {
-            inline bool operator()( const mappedName& left, const mappedName& right ) const
-            {
-                return operator() ( left.name, right.name );
-            }
-
-            inline bool operator()( const mappedName& left, const std::string& right ) const
-            {
-                return operator() ( left.name, right );
-            }
-
-            inline bool operator()( const std::string& left, const mappedName& right ) const
-            {
-                return operator() ( left, right.name );
-            }
-
-            inline bool operator()( const std::string& left, const std::string& right ) const
-            {
-                return ( left < right );
-            }
-
-            typedef std::string is_transparent;
-        };
-
-    public:
-        std::map <mappedName, size_t, _funcNameMapComparator> funcNameMap;
+        peMap <mappedName, size_t> funcNameMap;
 
         // Helper API.
         // (all ordinals have to be local to this image ordinal base)
@@ -1495,7 +1483,7 @@ public:
         void MapName( std::uint32_t ordinal, const char *name );
         void RemoveExport( std::uint32_t ordinal );
 
-        func* ResolveExport( bool isOrdinal, std::uint32_t ordinal, const std::string& name );
+        func* ResolveExport( bool isOrdinal, std::uint32_t ordinal, const peString <char>& name );
 
         PESectionAllocation funcAddressAllocEntry;
         PESectionAllocation funcNamesAllocEntry;
@@ -1519,13 +1507,13 @@ public:
         struct importFunc
         {
             std::uint16_t ordinal_hint;
-            std::string name;
+            peString <char> name;
             bool isOrdinalImport;
 
             PESectionAllocation nameAllocEntry;
         };
 
-        typedef std::vector <importFunc> functions_t;
+        typedef peVector <importFunc> functions_t;
 
         // Query API.
         const importFunc* FindImportEntry( std::uint16_t ordinal_hint, const char *name, bool isOrdinalImport, std::uint32_t *indexOut = nullptr ) const;
@@ -1539,7 +1527,7 @@ public:
         static functions_t CreateEquivalentImportsList( const functions_t& right );
 
         functions_t funcs;
-        std::string DLLName;
+        peString <char> DLLName;
 
         PESectionAllocation impNameArrayAllocEntry;
         PESectionAllocation DLLName_allocEntry;
@@ -1548,7 +1536,7 @@ public:
         // by compilers.
         PESectionDataReference firstThunkRef;
     };
-    std::vector <PEImportDesc> imports;
+    peVector <PEImportDesc> imports;
 
     PESectionAllocation importsAllocEntry;
 
@@ -1561,7 +1549,7 @@ public:
             DATA
         };
 
-        inline PEResourceItem( eType typeDesc, bool isIdentifierName, std::u16string name, std::uint16_t identifier )
+        inline PEResourceItem( eType typeDesc, bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier ) noexcept
             : itemType( std::move( typeDesc ) ), name( std::move( name ) ),
               identifier( std::move( identifier ) ), hasIdentifierName( std::move( isIdentifierName ) )
         {
@@ -1574,17 +1562,17 @@ public:
         }
 
         // Helpers.
-        std::wstring GetName( void ) const;
+        peString <wchar_t> GetName( void ) const;
 
         eType itemType;
-        std::u16string name;            // valid if hasIdentifierName == false
+        peString <char16_t> name;       // valid if hasIdentifierName == false
         std::uint16_t identifier;       // valid if hasIdentifierName == true
         bool hasIdentifierName;         // if true then identifier field is valid, name is not
     };
 
     struct PEResourceInfo : public PEResourceItem
     {
-        inline PEResourceInfo( bool isIdentifierName, std::u16string name, std::uint16_t identifier, PESectionDataReference dataRef )
+        inline PEResourceInfo( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier, PESectionDataReference dataRef ) noexcept
             : PEResourceItem( eType::DATA, std::move( isIdentifierName ), std::move( name ), std::move( identifier ) ),
               sectRef( std::move( dataRef ) )
         {
@@ -1601,7 +1589,7 @@ public:
 
     struct PEResourceDir : public PEResourceItem
     {
-        inline PEResourceDir( bool isIdentifierName, std::u16string name, std::uint16_t identifier )
+        inline PEResourceDir( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier ) noexcept
             : PEResourceItem( eType::DIRECTORY, std::move( isIdentifierName ), std::move( name ), std::move( identifier ) )
         {
             this->characteristics = 0;
@@ -1622,27 +1610,27 @@ public:
                 delete item;
             }
 
-            this->namedChildren.clear();
+            this->namedChildren.Clear();
 
             for ( PEResourceItem *item : this->idChildren )
             {
                 delete item;
             }
 
-            this->idChildren.clear();
+            this->idChildren.Clear();
         }
 
         inline PEResourceDir& operator = ( const PEResourceDir& right ) = delete;
         inline PEResourceDir& operator = ( PEResourceDir&& right ) = default;
 
         // Helper API.
-        PEResourceItem* FindItem( bool isIdentifierName, const std::u16string& name, std::uint16_t identifier );
+        PEResourceItem* FindItem( bool isIdentifierName, const peString <char16_t>& name, std::uint16_t identifier );
 
         bool AddItem( PEResourceItem *theItem );
         bool RemoveItem( const PEResourceItem *theItem );
         bool IsEmpty( void ) const
         {
-            return ( this->namedChildren.empty() && this->idChildren.empty() );
+            return ( this->namedChildren.IsEmpty() && this->idChildren.IsEmpty() );
         }
 
         template <typename callbackType>
@@ -1667,48 +1655,53 @@ public:
     private:
         struct _compareNamedEntry
         {
-            inline bool operator() ( const PEResourceItem *left, const PEResourceItem *right ) const
+            static inline bool str_is_less_than( const peString <char16_t>& left, const peString <char16_t>& right )
             {
-                return ( left->name < right->name );
+                return FixedStringCompare(
+                    left.GetConstString(), left.GetLength(),
+                    right.GetConstString(), right.GetLength(),
+                    true
+                ) == eir::eCompResult::LEFT_LESS;
             }
 
-            inline bool operator() ( const std::u16string& left, const PEResourceItem *right ) const
+            static inline bool is_less_than( const PEResourceItem *left, const PEResourceItem *right )
             {
-                return ( left < right->name );
+                return str_is_less_than( left->name, right->name );
             }
 
-            inline bool operator() ( const PEResourceItem *left, const std::u16string& right ) const
+            static inline bool is_less_than( const peString <char16_t>& left, const PEResourceItem *right )
             {
-                return ( left->name < right );
+                return str_is_less_than( left, right->name );
             }
 
-            typedef std::u16string is_transparent;
+            static inline bool is_less_than( const PEResourceItem *left, const peString <char16_t>& right )
+            {
+                return str_is_less_than( left->name, right );
+            }
         };
 
         struct _compareIDEntry
         {
-            inline bool operator() ( const PEResourceItem *left, const PEResourceItem *right ) const
+            static inline bool is_less_than( const PEResourceItem *left, const PEResourceItem *right )
             {
                 return ( left->identifier < right->identifier );
             }
 
-            inline bool operator() ( std::uint16_t left, const PEResourceItem *right ) const
+            static inline bool is_less_than( std::uint16_t left, const PEResourceItem *right )
             {
                 return ( left < right->identifier );
             }
 
-            inline bool operator() ( const PEResourceItem *left, std::uint16_t right ) const
+            static inline bool is_less_than( const PEResourceItem *left, std::uint16_t right )
             {
                 return ( left->identifier < right );
             }
-
-            typedef std::uint16_t is_transparent;
         };
 
     public:
         // We contain named and id entries.
-        std::set <PEResourceItem*, _compareNamedEntry> namedChildren;
-        std::set <PEResourceItem*, _compareIDEntry> idChildren;
+        peSet <PEResourceItem*, _compareNamedEntry> namedChildren;
+        peSet <PEResourceItem*, _compareIDEntry> idChildren;
     };
     PEResourceDir resourceRoot;
 
@@ -1720,7 +1713,7 @@ public:
         PESectionDataReference endAddrRef;
         PESectionDataReference unwindInfoRef;
     };
-    std::vector <PERuntimeFunction> exceptRFs;
+    peVector <PERuntimeFunction> exceptRFs;
 
     PESectionAllocation exceptAllocEntry;
 
@@ -1781,15 +1774,15 @@ public:
         };
         static_assert( sizeof(item) == sizeof(std::uint16_t), "invalid item size" );
 
-        std::vector <item> items;
+        peVector <item> items;
     };
-    std::map <std::uint32_t, PEBaseReloc> baseRelocs;
+    peMap <std::uint32_t, PEBaseReloc> baseRelocs;
 
     PESectionAllocation baseRelocAllocEntry;
 
     struct PEDebugDesc
     {
-        inline PEDebugDesc( void )
+        inline PEDebugDesc( void ) noexcept
         {
             this->characteristics = 0;
             this->timeDateStamp = 0;
@@ -1811,13 +1804,13 @@ public:
 
         PEFileSpaceData dataStore;
     };
-    std::vector <PEDebugDesc> debugDescs;
+    peVector <PEDebugDesc> debugDescs;
 
     PESectionAllocation debugDescsAlloc;
 
     struct PEGlobalPtr
     {
-        inline PEGlobalPtr( void )
+        inline PEGlobalPtr( void ) noexcept
         {
             this->ptrOffset = 0;
         }
@@ -1828,7 +1821,7 @@ public:
 
     struct PEThreadLocalStorage
     {
-        inline PEThreadLocalStorage( void )
+        inline PEThreadLocalStorage( void ) noexcept
         {
             this->sizeOfZeroFill = 0;
             this->characteristics = 0;
@@ -1840,7 +1833,7 @@ public:
         inline PEThreadLocalStorage& operator = ( const PEThreadLocalStorage& right ) = delete;
         inline PEThreadLocalStorage& operator = ( PEThreadLocalStorage&& right ) = default;
 
-        inline bool NeedsWriting( void ) const
+        inline bool NeedsWriting( void ) const noexcept
         {
             if ( this->startOfRawDataRef.GetRVA() != 0 ||
                  this->endOfRawDataRef.GetRVA() != 0 ||
@@ -1920,16 +1913,16 @@ public:
         inline PEBoundImport& operator = ( PEBoundImport&& right ) = default;
 
         std::uint32_t timeDateStamp;
-        std::string DLLName;
+        peString <char> DLLName;
 
-        std::vector <PEBoundImport> forw_bindings;
+        peVector <PEBoundImport> forw_bindings;
     };
-    std::vector <PEBoundImport> boundImports;
+    peVector <PEBoundImport> boundImports;
     // boundImports are always written outside of PE sections.
 
     struct PEThunkIATStore
     {
-        inline PEThunkIATStore( void )
+        inline PEThunkIATStore( void ) noexcept
         {
             this->thunkDataStart = 0;
             this->thunkDataSize = 0;
@@ -1944,7 +1937,7 @@ public:
     {
         // Uses a similar layout to the PEImportDesc data.
         std::uint32_t attrib;
-        std::string DLLName;
+        peString <char> DLLName;
         PESectionAllocation DLLName_allocEntry;
         PESectionAllocation DLLHandleAlloc;     // just storage (for the NT loader) in the size of a pointer
         PESectionDataReference IATRef;
@@ -1954,13 +1947,13 @@ public:
         PESectionDataReference unloadInfoTableRef;
         std::uint32_t timeDateStamp;
     };
-    std::vector <PEDelayLoadDesc> delayLoads;
+    peVector <PEDelayLoadDesc> delayLoads;
 
     PESectionAllocation delayLoadsAllocEntry;
 
     struct PECommonLanguageRuntimeInfo
     {
-        inline PECommonLanguageRuntimeInfo( void )
+        inline PECommonLanguageRuntimeInfo( void ) noexcept
         {
             this->dataOffset = 0;
             this->dataSize = 0;

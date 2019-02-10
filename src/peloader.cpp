@@ -1,10 +1,8 @@
 #include "peframework.h"
 
-#include <vector>
-
 #include "peloader.internal.hxx"
 
-PEFile::PEFile( void ) : sections( 0x1000, 0x10000 ), resourceRoot( false, std::u16string(), 0 )
+PEFile::PEFile( void ) : sections( 0x1000, 0x10000 ), resourceRoot( false, peString <char16_t> (), 0 )
 {
     // By default we generate plain PE32+ files.
     // If true then PE32+ files are generated.
@@ -368,9 +366,9 @@ void PEFile::PESection::SetPlacedMemoryInline( PESectionAllocation& blockMeta, s
 
         streamSlice_t reqSlice( allocOff, std::max( allocSize, 1u ) );
 
-        streamSlice_t::eIntersectionResult intResult = reqSlice.intersectWith( sectionSlice );
+        eir::eIntersectionResult intResult = reqSlice.intersectWith( sectionSlice );
 
-        assert( intResult == streamSlice_t::INTERSECT_INSIDE || intResult == streamSlice_t::INTERSECT_EQUAL );
+        assert( intResult == eir::INTERSECT_INSIDE || intResult == eir::INTERSECT_EQUAL );
     }
 
     blockMeta.sectOffset = allocOff;
@@ -657,7 +655,7 @@ void PEFile::PESection::RegisterTargetRVA(
         }
     }
 
-    this->placedOffsets.emplace_back( patchOffset, targetSect, targetOffset, offsetType );
+    this->placedOffsets.AddToBack( PEPlacedOffset( patchOffset, targetSect, targetOffset, offsetType ) );
 }
 
 void PEFile::PESection::RegisterTargetRVA(
@@ -895,7 +893,7 @@ void PEFile::PEFileSpaceData::ClearData( void )
 {
     if ( this->storageType == eStorageType::FILE )
     {
-        this->fileRef.clear();
+        this->fileRef.Clear();
     }
     else if ( this->storageType == eStorageType::SECTION )
     {
@@ -928,15 +926,15 @@ void PEFile::PEFileSpaceData::fileSpaceStreamBufferManager::EstablishBufferView(
         if ( fileSpaceMan->storageType == eStorageType::SECTION )
         {
             // Copy all data into a buffer.
-            std::vector <char> dataBuf;
+            peVector <char> dataBuf;
 
             std::uint32_t dataSize = fileSpaceMan->sectRef.GetDataSize();
 
-            dataBuf.resize( dataSize );
+            dataBuf.Resize( dataSize );
 
             PEDataStream dataStream( fileSpaceMan->sectRef.GetSection(), fileSpaceMan->sectRef.ResolveInternalOffset( 0 ) );
 
-            dataStream.Read( dataBuf.data(), dataSize );
+            dataStream.Read( dataBuf.GetData(), dataSize );
 
             // Release the section reference.
             fileSpaceMan->sectRef = PESectionAllocation();
@@ -951,7 +949,7 @@ void PEFile::PEFileSpaceData::fileSpaceStreamBufferManager::EstablishBufferView(
         // Simply resize ourselves.
         try
         {
-            fileSpaceMan->fileRef.resize( reqSize );
+            fileSpaceMan->fileRef.Resize( reqSize );
         }
         catch( std::exception& )
         {
@@ -960,7 +958,7 @@ void PEFile::PEFileSpaceData::fileSpaceStreamBufferManager::EstablishBufferView(
         }
 
         // Success!
-        memPtr = fileSpaceMan->fileRef.data();
+        memPtr = fileSpaceMan->fileRef.GetData();
         streamSize = reqSize;
 
         fileSpaceMan->storageType = eStorageType::FILE;
@@ -996,8 +994,8 @@ PEFile::PEFileSpaceData::fileSpaceStream_t PEFile::PEFileSpaceData::OpenStream( 
     }
     else if ( storageType == eStorageType::FILE )
     {
-        streamBuf = this->fileRef.data();
-        streamSize = (std::uint32_t)this->fileRef.size();
+        streamBuf = this->fileRef.GetData();
+        streamSize = (std::uint32_t)this->fileRef.GetCount();
     }
 
     return fileSpaceStream_t( streamBuf, streamSize, streamMan );
@@ -1063,39 +1061,21 @@ bool PEFile::FindSectionSpace( std::uint32_t spanSize, std::uint32_t& addrOut )
     return this->sections.FindSectionSpace( spanSize, addrOut );
 }
 
-void PEFile::ForAllSections( std::function <void ( PESection* )> cb )
-{
-    LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
-
-        cb( item );
-
-    LIST_FOREACH_END
-}
-
-void PEFile::ForAllSections( std::function <void ( const PESection* )> cb ) const
-{
-    LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
-
-        const PESection *constSect = item;
-
-        cb( constSect );
-
-    LIST_FOREACH_END
-}
-
 bool PEFile::HasRelocationInfo( void ) const
 {
     // Check any sections.
     LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
 
-        if ( item->relocations.size() != 0 )
+        if ( item->relocations.GetCount() != 0 )
             return true;
 
     LIST_FOREACH_END
 
     // Check the base relocation data.
-    if ( this->baseRelocs.size() != 0 )
+    if ( this->baseRelocs.IsEmpty() == false )
+    {
         return true;
+    }
 
     // Nothing found.
     return false;
@@ -1106,7 +1086,7 @@ bool PEFile::HasLinenumberInfo( void ) const
     // Check sections.
     LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
 
-        if ( item->linenumbers.size() != 0 )
+        if ( item->linenumbers.GetCount() != 0 )
             return true;
 
     LIST_FOREACH_END
@@ -1118,7 +1098,7 @@ bool PEFile::HasLinenumberInfo( void ) const
 bool PEFile::HasDebugInfo( void ) const
 {
     // We check if we have debug directory data.
-    if ( this->debugDescs.size() != 0 )
+    if ( this->debugDescs.GetCount() != 0 )
     {
         return true;
     }

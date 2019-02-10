@@ -57,9 +57,9 @@ void PEFile::PEFileSpaceData::ReadFromFile( PEStream *peStream, const PESectionM
         // After all, debug information is a 'special citizen' of the PE standard.
         peStream->Seek( filePtr );
 
-        this->fileRef.resize( dataSize );
+        this->fileRef.Resize( dataSize );
 
-        size_t readCount = peStream->Read( this->fileRef.data(), dataSize );
+        size_t readCount = peStream->Read( this->fileRef.GetData(), dataSize );
 
         if ( readCount != dataSize )
         {
@@ -174,7 +174,7 @@ PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::ReadPEImportFunctions( P
         }
         funcInfo.isOrdinalImport = isOrdinalImport;
 
-        funcs.push_back( std::move( funcInfo ) );
+        funcs.AddToBack( std::move( funcInfo ) );
     }
 
     return funcs;
@@ -252,9 +252,10 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             {
                 std::uint32_t sizeOfStubData = ( newDataOffset - sizeof( dosHeader ) );
 
-                std::vector <unsigned char> progData( sizeOfStubData );
+                peVector <unsigned char> progData;
+                progData.Resize( sizeOfStubData );
                 {
-                    size_t progReadCount = peStream->Read( progData.data(), sizeOfStubData );
+                    size_t progReadCount = peStream->Read( progData.GetData(), sizeOfStubData );
 
                     if ( progReadCount != sizeOfStubData )
                     {
@@ -616,13 +617,13 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         std::uint32_t file_off;
     };
 
-    std::vector <pesect_file_off_info> pesect_file_off;
+    peVector <pesect_file_off_info> pesect_file_off;
 
     if ( requiresSectionFileOffsets )
     {
         // We only allocate this thing on demand, because modern PE files do not
         // come with it anymore.
-        pesect_file_off.resize( numSections );
+        pesect_file_off.Resize( numSections );
     }
 
     for ( size_t n = 0; n < numSections; n++ )
@@ -642,7 +643,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         pe_file_ptr_t sectHeaderOff = peStream->Tell();
 
         PESection section;
-        section.shortName = std::string( (const char*)sectHeader.Name, strnlen( (const char*)sectHeader.Name, countof(sectHeader.Name) ) );
+        section.shortName = peString <char> ( (const char*)sectHeader.Name, strnlen( (const char*)sectHeader.Name, countof(sectHeader.Name) ) );
         section.SetPlacementInfo( sectHeader.VirtualAddress, sectHeader.Misc.VirtualSize );
 
         // Save characteristics flags.
@@ -682,8 +683,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         {
             peStream->Seek( sectHeader.PointerToRelocations );
 
-            std::vector <PERelocation> relocs;
-            relocs.reserve( sectHeader.NumberOfRelocations );
+            peVector <PERelocation> relocs;
 
             for ( std::uint32_t n = 0; n < sectHeader.NumberOfRelocations; n++ )
             {
@@ -705,7 +705,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 data.symbolTableIndex = relocEntry.SymbolTableIndex;
                 data.type = relocEntry.Type;
 
-                relocs.push_back( std::move( data ) );
+                relocs.AddToBack( std::move( data ) );
             }
 
             section.relocations = std::move( relocs );
@@ -715,8 +715,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         {
             peStream->Seek( sectHeader.PointerToLinenumbers );
 
-            std::vector <PELinenumber> linenums;
-            linenums.reserve( sectHeader.NumberOfLinenumbers );
+            peVector <PELinenumber> linenums;
 
             for ( size_t n = 0; n < sectHeader.NumberOfLinenumbers; n++ )
             {
@@ -736,7 +735,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 line.symTableIndex = lineInfo.Type.SymbolTableIndex;
                 line.number = lineInfo.Linenumber;
 
-                linenums.push_back( std::move( line ) );
+                linenums.AddToBack( std::move( line ) );
             }
 
             section.linenumbers = std::move( linenums );
@@ -821,8 +820,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             // Allocate functions.
             if ( expEntry.AddressOfFunctions != 0 )
             {
-                std::vector <PEExportDir::func> funcs;
-                funcs.reserve( expEntry.NumberOfFunctions );
+                peVector <PEExportDir::func> funcs;
 
                 PESection *addrPtrSect;
                 PEDataStream addrPtrStream;
@@ -865,9 +863,9 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                                 rvaSlice_t expDirSlice( expDirEntry.VirtualAddress, expDirEntry.Size );
 
-                                rvaSlice_t::eIntersectionResult intResult = requestSlice.intersectWith( expDirSlice );
+                                eir::eIntersectionResult intResult = requestSlice.intersectWith( expDirSlice );
 
-                                isForwarder = ( rvaSlice_t::isFloatingIntersect( intResult ) == false );
+                                isForwarder = ( eir::isFloatingIntersect( intResult ) == false );
                             }
 
                             // Store properties according to the type.
@@ -907,7 +905,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
                     fentry.isForwarder = isForwarder;
 
-                    funcs.push_back( std::move( fentry ) );
+                    funcs.AddToBack( std::move( fentry ) );
                 }
 
                 // Read names and ordinals, if available.
@@ -956,7 +954,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         // Get the index to map the function name to (== ordinal).
                         size_t mapIndex = ( ordinal );
 
-                        if ( mapIndex >= funcs.size() )
+                        if ( mapIndex >= funcs.GetCount() )
                         {
                             // Invalid mapping.
                             throw peframework_exception(
@@ -972,7 +970,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         addrNamesStream.Read( &namePtrRVA, sizeof(namePtrRVA) );
 
                         // Read the actual name.
-                        std::string realName;
+                        peString <char> realName;
                         {
                             bool gotString = sections.ReadPEString( namePtrRVA, realName, &realNamePtrSect );
 
@@ -986,7 +984,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         }
 
                         // Check some kind of sense behind the name.
-                        if ( realName.empty() )
+                        if ( realName.IsEmpty() )
                         {
                             // Kind of invalid.
                             throw peframework_exception(
@@ -1001,7 +999,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                         realNamePtrSect->SetPlacedMemory( nameMap.nameAllocEntry, namePtrRVA );
 
-                        expInfo.funcNameMap.insert( std::make_pair( std::move( nameMap ), std::move( mapIndex ) ) );
+                        expInfo.funcNameMap.Set( std::move( nameMap ), std::move( mapIndex ) );
                     }
                 }
 
@@ -1013,7 +1011,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     }
 
     // * IMPORT directory.
-    std::vector <PEImportDesc> impDescs;
+    peVector <PEImportDesc> impDescs;
     {
         const PEStructures::IMAGE_DATA_DIRECTORY& impDir = dataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_IMPORT ];
 
@@ -1037,8 +1035,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
             // Read all the descriptors.
             const std::uint32_t potentialNumDescriptors = ( impDir.Size / sizeof( PEStructures::IMAGE_IMPORT_DESCRIPTOR ) );
-
-            impDescs.reserve( potentialNumDescriptors );
 
             std::uint32_t n = 0;
 
@@ -1093,7 +1089,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 impDesc.firstThunkRef = sections.ResolveRVAToRef( importInfo.FirstThunk );
 
                 // Store this import desc.
-                impDescs.push_back( std::move( impDesc ) );
+                impDescs.AddToBack( std::move( impDesc ) );
 
                 // Next iteration.
                 n++;
@@ -1106,13 +1102,13 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     }
 
     // * Resources.
-    PEResourceDir resourceRoot( false, std::u16string(), 0 );
+    PEResourceDir resourceRoot( false, peString <char16_t> (), 0 );
     {
         struct helpers
         {
             inline static PEResourceDir LoadResourceDirectory(
                 PESectionMan& sections, PEDataStream& rootStream,
-                bool isIdentifierName, std::u16string nameOfDir, std::uint16_t identifier,
+                bool isIdentifierName, peString <char16_t> nameOfDir, std::uint16_t identifier,
                 const PEStructures::IMAGE_RESOURCE_DIRECTORY& serResDir )
             {
                 PEResourceDir curDir( std::move( isIdentifierName ), std::move( nameOfDir ), std::move( identifier ) );
@@ -1129,7 +1125,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 std::uint16_t numIDEntries = serResDir.NumberOfIdEntries;
 
                 // Function to read the data behind a resource directory entry.
-                auto resDataParser = [&]( bool isIdentifierName, std::u16string nameOfItem, std::uint16_t identifier, const PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY& entry ) -> PEResourceItem*
+                auto resDataParser = [&]( bool isIdentifierName, peString <char16_t> nameOfItem, std::uint16_t identifier, const PEStructures::IMAGE_RESOURCE_DIRECTORY_ENTRY& entry ) -> PEResourceItem*
                 {
                     // Seek to this data entry.
                     rootStream.Seek( entry.OffsetToData );
@@ -1202,16 +1198,16 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
 
                     // Load the name.
-                    std::u16string nameOfItem;
+                    peString <char16_t> nameOfItem;
                     {
                         rootStream.Seek( namedEntry.NameOffset );
 
                         std::uint16_t nameCharCount;
                         rootStream.Read( &nameCharCount, sizeof(nameCharCount) );
 
-                        nameOfItem.resize( nameCharCount );
+                        nameOfItem.Resize( nameCharCount );
 
-                        rootStream.Read( (char16_t*)nameOfItem.c_str(), nameCharCount );
+                        rootStream.Read( (char16_t*)nameOfItem.GetConstString(), nameCharCount );
                     }
 
                     // Create a resource item.
@@ -1220,7 +1216,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     // Store ourselves.
                     try
                     {
-                        curDir.namedChildren.insert( resItem );
+                        curDir.namedChildren.Insert( resItem );
                     }
                     catch( ... )
                     {
@@ -1246,12 +1242,12 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
 
                     // Create a resource item.
-                    PEResourceItem *resItem = resDataParser( true, std::u16string(), idEntry.Id, idEntry );
+                    PEResourceItem *resItem = resDataParser( true, peString <char16_t> (), idEntry.Id, idEntry );
 
                     // Store it.
                     try
                     {
-                        curDir.idChildren.insert( resItem );
+                        curDir.idChildren.Insert( resItem );
                     }
                     catch( ... )
                     {
@@ -1290,14 +1286,14 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
             resourceRoot = helpers::LoadResourceDirectory(
                 sections, resDataStream,
-                false, std::u16string(), 0,
+                false, peString <char16_t> (), 0,
                 resDir
             );
         }
     }
 
     // * Exception Information.
-    std::vector <PERuntimeFunction> exceptRFs;
+    peVector <PERuntimeFunction> exceptRFs;
     {
         const PEStructures::IMAGE_DATA_DIRECTORY& rtDir = dataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_EXCEPTION ];
 
@@ -1324,8 +1320,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             rtFuncsSect->SetPlacedMemory( this->exceptAllocEntry, rtDir.VirtualAddress, rtDir.Size );
 
             const std::uint32_t numFuncs = ( rtDir.Size / sizeof( PEStructures::IMAGE_RUNTIME_FUNCTION_ENTRY_X64 ) );
-
-            exceptRFs.reserve( numFuncs );
 
             for ( size_t n = 0; n < numFuncs; n++ )
             {
@@ -1385,7 +1379,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 funcInfo.endAddrRef = PESectionDataReference( endAddrSect, endAddrSectOff );
                 funcInfo.unwindInfoRef = PESectionDataReference( unwindInfoSect, unwindInfoSectOff );
 
-                exceptRFs.push_back( std::move( funcInfo ) );
+                exceptRFs.AddToBack( std::move( funcInfo ) );
             }
         }
     }
@@ -1403,7 +1397,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     }
 
     // * BASE RELOC.
-    std::map <std::uint32_t, PEBaseReloc> baseRelocs;
+    peMap <std::uint32_t, PEBaseReloc> baseRelocs;
     {
         const PEStructures::IMAGE_DATA_DIRECTORY& baserelocDir = dataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_BASERELOC ];
 
@@ -1472,8 +1466,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     // Read all relocations.
                     const std::uint32_t numRelocItems = ( entryBlockSize / sizeof( PEStructures::IMAGE_BASE_RELOC_TYPE_ITEM ) );
 
-                    info.items.reserve( numRelocItems );
-
                     // Base relocation are stored in a stream-like array. Some entries form tuples,
                     // so that two entries have to be next to each other.
                     size_t reloc_index = 0;
@@ -1487,7 +1479,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         itemInfo.offset = reloc.offset;
                         itemInfo.type = reloc.type;
 
-                        info.items.push_back( std::move( itemInfo ) );
+                        info.items.AddToBack( std::move( itemInfo ) );
 
                         reloc_index++;
                     }
@@ -1496,7 +1488,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     // We take advantage of the alignedness and divide by that number.
                     std::uint32_t baseRelocIndex = ( relVirtAddr / baserelocChunkSize );
 
-                    baseRelocs.insert( std::make_pair( baseRelocIndex, std::move( info ) ) );
+                    baseRelocs.Set( baseRelocIndex, std::move( info ) );
                 }
 
                 // Done reading this descriptor.
@@ -1556,7 +1548,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 );
 
                 // Store our information.
-                debugDescs.push_back( std::move( debugInfo ) );
+                debugDescs.AddToBack( std::move( debugInfo ) );
             }
         }
     }
@@ -1786,7 +1778,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     pe_file_ptr_t saved_fileOff = peStream->Tell();
 
                     // Fetch the DLL name.
-                    std::string DLLName;
+                    peString <char> DLLName;
                     {
                         peStream->Seek( dirRootOff + boundDesc.OffsetModuleName );
 
@@ -1841,7 +1833,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                         PEBoundImport childBoundImport = LoadBoundImportDirectory( peStream, dirRootOff, boundDesc );
 
-                        desc.forw_bindings.push_back( std::move( childBoundImport ) );
+                        desc.forw_bindings.AddToBack( std::move( childBoundImport ) );
                     }
 
                     return desc;
@@ -1884,7 +1876,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
 
                 PEBoundImport boundImport = helpers::LoadBoundImportDirectory( peStream, boundImpFileOff, boundDesc );
 
-                boundImports.push_back( std::move( boundImport ) );
+                boundImports.AddToBack( std::move( boundImport ) );
             }
 
             // OK.
@@ -1903,7 +1895,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     }
 
     // * DELAY LOAD IMPORTS.
-    std::vector <PEDelayLoadDesc> delayLoads;
+    peVector <PEDelayLoadDesc> delayLoads;
     {
         const PEStructures::IMAGE_DATA_DIRECTORY& delayDataDir = dataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT ];
 
@@ -1926,8 +1918,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
             delayLoadDescsSect->SetPlacedMemory( this->delayLoadsAllocEntry, delayDataDir.VirtualAddress, delayDataDir.Size );
 
             const std::uint32_t numDelayLoads = ( delayDataDir.Size / sizeof(PEStructures::IMAGE_DELAYLOAD_DESCRIPTOR) );
-
-            delayLoads.reserve( numDelayLoads );
 
             // Store all of the details.
             std::uint32_t n = 0;
@@ -2011,7 +2001,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 desc.timeDateStamp = delayLoad.TimeDateStamp;
 
                 // Store it.
-                delayLoads.push_back( std::move( desc ) );
+                delayLoads.AddToBack( std::move( desc ) );
 
                 // Advance to the next.
                 n++;

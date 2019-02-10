@@ -8,7 +8,7 @@ PEFile::PEImportDesc* PEFile::FindImportDescriptor( const char *moduleName )
     {
         if ( UniversalCompareStrings(
                 moduleName, strlen(moduleName),
-                impDesc.DLLName.c_str(), impDesc.DLLName.size(),
+                impDesc.DLLName.GetConstString(), impDesc.DLLName.GetLength(),
                 false
              ) )
         {
@@ -26,12 +26,12 @@ PEFile::PEImportDesc& PEFile::EstablishImportDescriptor( const char *moduleName 
         return *impDesc;
     }
 
-    this->imports.emplace_back( moduleName );
+    this->imports.AddToBack( moduleName );
 
     // Need new native array.
     this->importsAllocEntry = PESectionAllocation();
     
-    return this->imports.back();
+    return this->imports.GetBack();
 }
 
 const PEFile::PEImportDesc::importFunc* PEFile::PEImportDesc::FindImportEntry( std::uint16_t ordinal_hint, const char *name, bool isOrdinalImport, std::uint32_t *indexOut ) const
@@ -82,7 +82,7 @@ PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::CreateEquivalentImportsL
 {
     PEImportDesc::functions_t newFuncs;
 
-    size_t modImpCount = funcs.size();
+    size_t modImpCount = funcs.GetCount();
 
     for ( size_t n = 0; n < modImpCount; n++ )
     {
@@ -94,7 +94,7 @@ PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::CreateEquivalentImportsL
         carbonCopy.nameAllocEntry = impFunc.nameAllocEntry.CloneOnlyFinal();
         carbonCopy.ordinal_hint = impFunc.ordinal_hint;
 
-        newFuncs.push_back( std::move( carbonCopy ) );
+        newFuncs.AddToBack( std::move( carbonCopy ) );
     }
 
     return newFuncs;
