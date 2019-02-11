@@ -1143,7 +1143,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                             subDirData
                         );
 
-                        return new PEResourceDir( std::move( subDir ) );
+                        return eir::static_new_struct <PEResourceDir, PEGlobalStaticAllocator> ( nullptr, std::move( subDir ) );
                     }
                     else
                     {
@@ -1175,7 +1175,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                         resItem.codePage = itemData.CodePage;
                         resItem.reserved = itemData.Reserved;
 
-                        return new PEResourceInfo( std::move( resItem ) );
+                        return eir::static_new_struct <PEResourceInfo, PEGlobalStaticAllocator> ( nullptr, std::move( resItem ) );
                     }
                 };
 
@@ -1220,7 +1220,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
                     catch( ... )
                     {
-                        delete resItem;
+                        eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, resItem );
 
                         throw;
                     }
@@ -1251,7 +1251,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
                     catch( ... )
                     {
-                        delete resItem;
+                        eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, resItem );
 
                         throw;
                     }

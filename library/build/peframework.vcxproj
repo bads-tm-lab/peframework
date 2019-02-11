@@ -140,6 +140,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Natvis Include="..\..\eirrepo\sdk\Endian.natvis" />
+    <Natvis Include="..\..\eirrepo\sdk\MemoryUtils.natvis" />
+    <Natvis Include="..\..\eirrepo\sdk\String.natvis" />
+    <Natvis Include="..\..\eirrepo\sdk\Vector.natvis" />
     <Natvis Include="peloader.natvis" />
   </ItemGroup>
   <ItemGroup>

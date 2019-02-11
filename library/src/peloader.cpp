@@ -29,10 +29,12 @@ std::uint16_t PEFile::GetPENativeFileFlags( void )
         chars |= PEL_IMAGE_FILE_EXECUTABLE_IMAGE;
     }
 
+#ifdef _PEFRAMEWORK_ENABLE_DEPRECATED_FEATURES
     if ( this->HasLinenumberInfo() == false )
     {
         chars |= PEL_IMAGE_FILE_LINE_NUMS_STRIPPED;
     }
+#endif //_PEFRAMEWORK_ENABLE_DEPRECATED_FEATURES
 
     if ( !this->pe_finfo.hasLocalSymbols )
     {
@@ -745,7 +747,7 @@ PEFile::PESectionMan::~PESectionMan( void )
 
         item->ownerImage = nullptr;
 
-        delete item;
+        eir::static_del_struct <PESection, PEGlobalStaticAllocator> ( nullptr, item );
 
     LIST_FOREACH_END
 
@@ -792,7 +794,7 @@ PEFile::PESection* PEFile::PESectionMan::AddSection( PESection&& theSection )
     }
 
     // We need to move the section into memory we control.
-    PESection *ourSect = new PESection( std::move( theSection ) );
+    PESection *ourSect = eir::static_new_struct <PESection, PEGlobalStaticAllocator> ( nullptr, std::move( theSection ) );
 
     // Since we did find some space lets register the new section candidate.
     ourSect->virtualAddr = allocInfo.slice.GetSliceStartPoint();
@@ -834,7 +836,7 @@ PEFile::PESection* PEFile::PESectionMan::PlaceSection( PESection&& theSection )
     }
 
     // Now put the section into our space.
-    PESection *ourSect = new PESection( std::move( theSection ) );
+    PESection *ourSect = eir::static_new_struct <PESection, PEGlobalStaticAllocator> ( nullptr, std::move( theSection ) );
 
     ourSect->virtualAddr = std::move( alignSectOffset );
     ourSect->virtualSize = std::move( alignSectSize );

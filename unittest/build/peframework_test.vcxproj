@@ -98,6 +98,7 @@
     <Link>
       <AdditionalLibraryDirectories>../../library/lib/$(Platform)/$(Configuration)/</AdditionalLibraryDirectories>
       <AdditionalDependencies>peframework.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -113,6 +114,7 @@
     <Link>
       <AdditionalLibraryDirectories>../../library/lib/$(Platform)/$(Configuration)/</AdditionalLibraryDirectories>
       <AdditionalDependencies>peframework.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -132,6 +134,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>../../library/lib/$(Platform)/$(Configuration)/</AdditionalLibraryDirectories>
       <AdditionalDependencies>peframework.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -151,6 +154,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>../../library/lib/$(Platform)/$(Configuration)/</AdditionalLibraryDirectories>
       <AdditionalDependencies>peframework.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

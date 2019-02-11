@@ -117,7 +117,7 @@ struct item_allocInfo
         {
             item_allocInfo *childItem = node->GetValue();
 
-            delete childItem;
+            eir::static_del_struct <item_allocInfo, PEGlobalStaticAllocator> ( nullptr, childItem );
         }
 
         this->children.Clear();
@@ -696,7 +696,7 @@ void PEFile::CommitDataDirectories( void )
                                     childAlloc.name_off = 0;
 
                                     // Create a memory copy of it.
-                                    item_allocInfo *memChildAlloc = new item_allocInfo( std::move( childAlloc ) );
+                                    item_allocInfo *memChildAlloc = eir::static_new_struct <item_allocInfo, PEGlobalStaticAllocator> ( nullptr, std::move( childAlloc ) );
 
                                     assert( memChildAlloc != nullptr );
 
@@ -707,7 +707,7 @@ void PEFile::CommitDataDirectories( void )
                                     }
                                     catch( ... )
                                     {
-                                        delete memChildAlloc;
+                                        eir::static_del_struct <item_allocInfo, PEGlobalStaticAllocator> ( nullptr, memChildAlloc );
 
                                         throw;
                                     }
@@ -724,7 +724,7 @@ void PEFile::CommitDataDirectories( void )
                                     childAlloc.name_off = 0;
 
                                     // Create a memory item.
-                                    item_allocInfo *memChildAlloc = new item_allocInfo( std::move( childAlloc ) );
+                                    item_allocInfo *memChildAlloc = eir::static_new_struct <item_allocInfo, PEGlobalStaticAllocator> ( nullptr, std::move( childAlloc ) );
 
                                     assert( memChildAlloc != nullptr );
 
@@ -734,7 +734,7 @@ void PEFile::CommitDataDirectories( void )
                                     }
                                     catch( ... )
                                     {
-                                        delete memChildAlloc;
+                                        eir::static_del_struct <item_allocInfo, PEGlobalStaticAllocator> ( nullptr, memChildAlloc );
 
                                         throw;
                                     }
@@ -1749,8 +1749,14 @@ void PEFile::WriteToStream( PEStream *peStream )
 
             LIST_FOREACH_BEGIN( PESection, this->sections.sectionList.root, sectionNode )
             
+                // The Windows binary writer uses a weird logic for determining an optimized virtual size for sections.
+                // At first glance it seems to remove any zero-bytes at the end of the stream. But if you examine the
+                // "write.exe" inside of our unit test deserialization samples you see that the third section header
+                // does not follow that rule. Thus I decided to write CLEAN virtual sizes, neglecting what the Windows
+                // PE writer does.
+
                 // Allocate this section.
-                const std::uint32_t allocVirtualSize = ALIGN_SIZE( item->GetVirtualSize(), sectionAlignment );
+                const std::uint32_t allocVirtualSize = item->GetVirtualSize();
                 const std::uint32_t rawDataSize = (std::uint32_t)item->stream.Size();
 
                 std::uint32_t sectOffset = allocMan.AllocateAny( rawDataSize, this->peOptHeader.fileAlignment );
@@ -2029,7 +2035,7 @@ void PEFile::WriteToStream( PEStream *peStream )
 #pragma pack(1)
             struct
             {
-                std::uint16_t Magic;
+                endian::little_endian <std::uint16_t> Magic;
                 PEStructures::IMAGE_OPTIONAL_HEADER64 optHeader;
                 decltype( peDataDirs ) dataDirs;
             } headerData;
@@ -2125,6 +2131,6 @@ void PEFile::WriteToStream( PEStream *peStream )
     }
 
     peStream->Seek( 0 );
-    peStream->Write( &dos_header,sizeof( dos_header ) );
+    peStream->Write( &dos_header, sizeof( dos_header ) );
     peStream->Write( this->dos_data.progData.GetData(), this->dos_data.progData.GetCount() );
 }

@@ -1607,14 +1607,14 @@ public:
             // dynamically allocated.
             for ( PEResourceItem *item : this->namedChildren )
             {
-                delete item;
+                eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, item );
             }
 
             this->namedChildren.Clear();
 
             for ( PEResourceItem *item : this->idChildren )
             {
-                delete item;
+                eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, item );
             }
 
             this->idChildren.Clear();
