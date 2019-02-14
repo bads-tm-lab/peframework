@@ -1220,7 +1220,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
                     catch( ... )
                     {
-                        eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, resItem );
+                        PEResourceDir::DestroyItem( resItem );
 
                         throw;
                     }
@@ -1251,7 +1251,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
                     catch( ... )
                     {
-                        eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, resItem );
+                        PEResourceDir::DestroyItem( resItem );
 
                         throw;
                     }

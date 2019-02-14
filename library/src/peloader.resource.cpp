@@ -89,3 +89,69 @@ bool PEFile::PEResourceDir::RemoveItem( const PEFile::PEResourceItem *theItem )
 
     return false;
 }
+
+PEFile::PEResourceInfo* PEFile::PEResourceDir::PutData( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier, PESectionDataReference dataRef )
+{
+    PEResourceItem *existingItem = this->FindItem( isIdentifierName, name, identifier );
+
+    if ( existingItem )
+    {
+        if ( existingItem->itemType == eType::DATA )
+        {
+            PEResourceInfo *dataItem = (PEResourceInfo*)existingItem;
+
+            // Update the item.
+            dataItem->sectRef = std::move( dataRef );
+            return dataItem;
+        }
+    }
+
+    PEResourceInfo *newItem = CreateData( isIdentifierName, std::move( name ), std::move( identifier ), std::move( dataRef ) );
+
+    if ( newItem )
+    {
+        if ( existingItem )
+        {
+            this->RemoveItem( existingItem );
+
+            // We also delete the item.
+            DestroyItem( existingItem );
+        }
+
+        this->AddItem( newItem );
+    }
+
+    return newItem;
+}
+
+PEFile::PEResourceDir* PEFile::PEResourceDir::MakeDir( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier )
+{
+    PEResourceItem *existingItem = this->FindItem( isIdentifierName, name, identifier );
+
+    if ( existingItem )
+    {
+        if ( existingItem->itemType == eType::DIRECTORY )
+        {
+            PEResourceDir *dirItem = (PEResourceDir*)existingItem;
+
+            return dirItem;
+        }
+    }
+
+    PEResourceDir *newItem = CreateDir( isIdentifierName, std::move( name ), std::move( identifier ) );
+
+    if ( newItem )
+    {
+        if ( existingItem )
+        {
+            this->RemoveItem( existingItem );
+
+            // We also destroy the item.
+            DestroyItem( existingItem );
+        }
+
+        this->AddItem( newItem );
+    }
+
+    return newItem;
+}

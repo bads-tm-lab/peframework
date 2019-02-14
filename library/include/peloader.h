@@ -1607,14 +1607,14 @@ public:
             // dynamically allocated.
             for ( PEResourceItem *item : this->namedChildren )
             {
-                eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, item );
+                DestroyItem( item );
             }
 
             this->namedChildren.Clear();
 
             for ( PEResourceItem *item : this->idChildren )
             {
-                eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, item );
+                DestroyItem( item );
             }
 
             this->idChildren.Clear();
@@ -1631,6 +1631,23 @@ public:
         bool IsEmpty( void ) const
         {
             return ( this->namedChildren.IsEmpty() && this->idChildren.IsEmpty() );
+        }
+
+        // Common helpers, take some functionality out of your hands.
+        PEResourceInfo* PutData( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier, PESectionDataReference dataRef );
+        PEResourceDir* MakeDir( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier );
+
+        static PEResourceDir* CreateDir( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier )
+        {
+            return eir::static_new_struct <PEResourceDir, PEGlobalStaticAllocator> ( nullptr, isIdentifierName, std::move( name ), std::move( identifier ) );
+        }
+        static PEResourceInfo* CreateData( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier, PESectionDataReference dataRef )
+        {
+            return eir::static_new_struct <PEResourceInfo, PEGlobalStaticAllocator> ( nullptr, isIdentifierName, std::move( name ), std::move( identifier ), std::move( dataRef ) );
+        }
+        static void DestroyItem( PEResourceItem *item )
+        {
+            eir::static_del_struct <PEResourceItem, PEGlobalStaticAllocator> ( nullptr, item );
         }
 
         template <typename callbackType>
