@@ -984,7 +984,7 @@ void PEFILE_DESERIALIZE_TESTS( void )
         // We do not compare for equal memory because the Windows PE file writer is a historical
         // application that writes certain optimized-for-itself constructs that do not pass the
         // test-of-time.
-        // But this also means that we do have a _true/complete_ idempotence test.
+        // But this also means that we do NOT have a _true/complete_ idempotence test.
     }
     printf( "ok.\n" );
 }
