@@ -583,14 +583,16 @@ public:
             }
 
         public:
-            inline void operator = ( PESectionAllocation&& right ) noexcept
+            inline PESectionAllocation& operator = ( PESectionAllocation&& right ) noexcept
             {
                 // Actually the same as the destructor does.
                 this->removeFromSection();
 
                 new (this) PESectionAllocation( std::move( right ) );
+
+				return *this;
             }
-            inline void operator = ( const PESectionAllocation& right ) = delete;
+            inline PESectionAllocation& operator = ( const PESectionAllocation& right ) = delete;
 
             inline ~PESectionAllocation( void )
             {
