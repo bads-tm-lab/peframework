@@ -581,18 +581,15 @@ void PEFile::CommitDataDirectories( void )
                     // either ordinal or name entries.
                     auto& funcs = impDesc.funcs;
 
-                    if ( funcs.GetCount() != 0 )
-                    {
-                        // First the sub-data.
-                        impDesc.AllocatePEImportFunctionsData( rdonlySect, funcs );
+                    // First the sub-data.
+                    impDesc.AllocatePEImportFunctionsData( rdonlySect, funcs );
 
-                        if ( impDesc.impNameArrayAllocEntry.IsAllocated() == false )
-                        {
-                            impDesc.impNameArrayAllocEntry =
-                                PEImportDesc::WritePEImportFunctions(
-                                    rdonlySect, funcs, isExtendedFormat
-                                );
-                        }
+                    if ( impDesc.impNameArrayAllocEntry.IsAllocated() == false )
+                    {
+                        impDesc.impNameArrayAllocEntry =
+                            PEImportDesc::WritePEImportFunctions(
+                                rdonlySect, funcs, isExtendedFormat
+                            );
                     }
 
                     // Allocate and write the module name that we should import from.

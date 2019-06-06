@@ -1643,9 +1643,17 @@ public:
         {
             return eir::static_new_struct <PEResourceDir, PEGlobalStaticAllocator> ( nullptr, isIdentifierName, std::move( name ), std::move( identifier ) );
         }
+        static PEResourceDir* CreateDir( PEResourceDir&& src )
+        {
+            return eir::static_new_struct <PEResourceDir, PEGlobalStaticAllocator> ( nullptr, std::move( src ) );
+        }
         static PEResourceInfo* CreateData( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier, PESectionDataReference dataRef )
         {
             return eir::static_new_struct <PEResourceInfo, PEGlobalStaticAllocator> ( nullptr, isIdentifierName, std::move( name ), std::move( identifier ), std::move( dataRef ) );
+        }
+        static PEResourceInfo* CreateData( PEResourceInfo&& src )
+        {
+            return eir::static_new_struct <PEResourceInfo, PEGlobalStaticAllocator> ( nullptr, std::move( src ) );
         }
         static void DestroyItem( PEResourceItem *item )
         {
