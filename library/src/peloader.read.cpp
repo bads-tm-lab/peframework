@@ -1067,6 +1067,14 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                             sections, importInfo.Characteristics, impDesc.impNameArrayAllocEntry, isExtendedFormat
                         );
                 }
+                else if ( importInfo.FirstThunk != 0 )
+                {
+                    // Some images are known to skip the Characteristics array to save space.
+                    impDesc.funcs =
+                        PEImportDesc::ReadPEImportFunctions(
+                            sections, importInfo.FirstThunk, impDesc.impNameArrayAllocEntry, isExtendedFormat
+                        );
+                }
 
                 // Store the DLL name we import from.
                 {
