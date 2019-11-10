@@ -1642,6 +1642,10 @@ public:
         {
             return ( this->namedChildren.IsEmpty() && this->idChildren.IsEmpty() );
         }
+        bool DoesRequireWriting( void ) const
+        {
+            return ( this->characteristics != 0 || this->timeDateStamp != 0 || this->majorVersion != 0 || this->minorVersion != 0 || this->IsEmpty() == false );
+        }
 
         // Common helpers, take some functionality out of your hands.
         PEResourceInfo* PutData( bool isIdentifierName, peString <char16_t> name, std::uint16_t identifier, PESectionDataReference dataRef );
@@ -2001,11 +2005,7 @@ public:
         inline PEDataDirectoryGeneric& operator = ( const PEDataDirectoryGeneric& ) = delete;
         inline PEDataDirectoryGeneric& operator = ( PEDataDirectoryGeneric&& ) = default;
 
-        virtual void SerializeDataDirectory( PESection *targetSect ) = 0;
-
-        virtual void* GetDirectoryData( void ) = 0;
-        virtual size_t GetDirectoryEntrySize( void ) const = 0;
-        virtual size_t GetDirectoryEntryCount( void ) const = 0;
+        virtual void SerializeDataDirectory( PESection *targetSect, std::uint64_t peImageBase ) = 0;
 
         // Location of said data on PE section space (non-empty only if synchronized).
         PESectionAllocation allocEntry;
@@ -2014,7 +2014,7 @@ public:
     // Generic data directory parser. Should be a static extension.
     struct PEDataDirectoryParser
     {
-        virtual PEDataDirectoryGeneric* DeserializeData( std::uint16_t machine_id, PESectionMan& sections, PEDataStream stream, std::uint32_t va, std::uint32_t vsize ) const = 0;
+        virtual PEDataDirectoryGeneric* DeserializeData( std::uint16_t machine_id, PESectionMan& sections, std::uint64_t peImageBase, PEDataStream stream, std::uint32_t va, std::uint32_t vsize ) const = 0;
     };
 
     // Storage of generic data directories.
@@ -2046,6 +2046,8 @@ public:
             return *this;
         }
 
+        // Map of specially-implemented data directories keyed by the data directory index (PEL_IMAGE_DIRECTORY_ENTRY_*).
+        // You have to include special headers to get the implementations.
         peMap <std::uint32_t, PEDataDirectoryGeneric*> entries;
     };
     PEGenericDataDirectories genDataDirs;

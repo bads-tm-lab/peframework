@@ -74,14 +74,6 @@ void PEFile::PEFileSpaceData::ReadFromFile( PEStream *peStream, const PESectionM
     // Having no storage is perfectly fine.
 }
 
-static AINLINE std::uint32_t VA2RVA( std::uint64_t va, std::uint64_t imageBase )
-{
-    if ( va == 0 )
-        return 0;
-
-    return (std::uint32_t)( va - imageBase );
-}
-
 PEFile::PEImportDesc::functions_t PEFile::PEImportDesc::ReadPEImportFunctions( PESectionMan& sections, std::uint32_t rva, PESectionAllocation& allocEntry, bool isExtendedFormat )
 {
     PESection *importNameArraySect;
@@ -1969,7 +1961,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                     }
 
                     // Try to load the stuff from the serialized image.
-                    PEDataDirectoryGeneric *genDataDir = parser->DeserializeData( machineType, sections, std::move( dataDirStream ), va, vsize );
+                    PEDataDirectoryGeneric *genDataDir = parser->DeserializeData( machineType, sections, imageBase, std::move( dataDirStream ), va, vsize );
 
                     if ( genDataDir != nullptr )
                     {

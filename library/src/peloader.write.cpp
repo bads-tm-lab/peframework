@@ -645,7 +645,7 @@ void PEFile::CommitDataDirectories( void )
             // * Resources.
             {
                 // Do we need a new resource data segment?
-                if ( this->resAllocEntry.IsAllocated() == false )
+                if ( this->resAllocEntry.IsAllocated() == false && this->resourceRoot.DoesRequireWriting() )
                 {
                     PEResourceDir& resRootDir = this->resourceRoot;
 
@@ -1414,7 +1414,7 @@ void PEFile::CommitDataDirectories( void )
                 if ( genDataDir->allocEntry.IsAllocated() == false )
                 {
                     // Commit any uncommitted data directory, if it wants to of course.
-                    genDataDir->SerializeDataDirectory( &rdonlySect );
+                    genDataDir->SerializeDataDirectory( &rdonlySect, imageBase );
                 }
             }
         }

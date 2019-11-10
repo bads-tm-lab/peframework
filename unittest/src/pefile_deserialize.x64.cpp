@@ -1,3 +1,5 @@
+// X64 image file deserialization tests.
+
 #include <peframework.h>
 
 #include "utils.hxx"
@@ -946,9 +948,9 @@ static const unsigned char _write_exe_sample[] =
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-void PEFILE_DESERIALIZE_TESTS( void )
+void PEFILE_DESERIALIZE_X64_TESTS( void )
 {
-    printf( "testing PEFile deserialize 'write.exe'..." );
+    printf( "testing PEFile X64 deserialize 'write.exe'..." );
     {
         PEFile image;
         {
@@ -962,7 +964,7 @@ void PEFILE_DESERIALIZE_TESTS( void )
     }
     printf( "ok.\n" );
 
-    printf( "testing PEFile semi-idempotence processing 'write.exe'..." );
+    printf( "testing PEFile X64 semi-idempotence processing 'write.exe'..." );
     {
         PEFile image;
 

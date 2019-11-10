@@ -17,6 +17,8 @@ struct PERuntimeFunctionMIPS
     PEFile::PESectionDataReference endOfPrologAddr;
 };
 
+// TODO: add the function registry and stuff.
+
 }
 
 #endif //_PELOADER_FUNCTIONS_REGISTRY_MIPS_

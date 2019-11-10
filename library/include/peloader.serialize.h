@@ -337,7 +337,7 @@ struct IMAGE_RUNTIME_FUNCTION_ENTRY_MIPS
     std::uint32_t PrologEndAddress; // absolute VA
 };
 
-struct IMAGE_RUNTIME_FUNCTION_ENTRY_ARM
+struct IMAGE_RUNTIME_FUNCTION_ENTRY_ARM_LEGACY
 {
     std::uint32_t BeginAddress;     // absolute VA
     std::uint32_t PrologLength : 8;
@@ -353,6 +353,46 @@ struct IMAGE_RUNTIME_FUNCTION_ENTRY_X64
     union
     {
         std::uint32_t UnwindInfoAddress;
+        std::uint32_t UnwindData;
+    };
+};
+
+struct IMAGE_RUNTIME_FUNCTION_ENTRY_ARM32
+{
+    std::uint32_t BeginAddress;
+    union
+    {
+        struct
+        {
+            std::uint32_t Flag : 2;
+            std::uint32_t FunctionLength : 11;
+            std::uint32_t Ret : 2;
+            std::uint32_t H : 1;
+            std::uint32_t Reg : 3;
+            std::uint32_t R : 1;
+            std::uint32_t L : 1;
+            std::uint32_t C : 1;
+            std::uint32_t StackAdjust : 10;
+        };
+        std::uint32_t UnwindData;
+    };
+};
+
+struct IMAGE_RUNTIME_FUNCTION_ENTRY_ARM64
+{
+    std::uint32_t BeginAddress;
+    union
+    {
+        struct
+        {
+            std::uint32_t Flag : 2;
+            std::uint32_t FunctionLength : 11;
+            std::uint32_t RegF : 3;
+            std::uint32_t RegI : 4;
+            std::uint32_t H : 1;
+            std::uint32_t CR : 2;
+            std::uint32_t FrameSize : 9;
+        };
         std::uint32_t UnwindData;
     };
 };
