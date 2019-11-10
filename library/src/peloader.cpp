@@ -725,7 +725,7 @@ PEFile::PESectionMan::PESectionMan( std::uint32_t sectionAlignment, std::uint32_
     this->imageBase = imageBase;
 }
 
-PEFile::PESectionMan::PESectionMan( PESectionMan&& right )
+PEFile::PESectionMan::PESectionMan( PESectionMan&& right ) noexcept
     : sectionAlignment( std::move( right.sectionAlignment ) ),
       imageBase( std::move( right.imageBase ) ),
       sectVirtualAllocMan( std::move( right.sectVirtualAllocMan ) ),
@@ -756,7 +756,7 @@ PEFile::PESectionMan::~PESectionMan( void )
     this->numSections = 0;
 }
 
-PEFile::PESectionMan& PEFile::PESectionMan::operator = ( PESectionMan&& right )
+PEFile::PESectionMan& PEFile::PESectionMan::operator = ( PESectionMan&& right ) noexcept
 {
     // We do the default way of move-assignment.
     this->~PESectionMan();

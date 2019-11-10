@@ -3,6 +3,7 @@
 
 // Target spec: Revision 10 – June 15, 2016
 // https://www.microsoft.com/en-us/download/details.aspx?id=19509
+// https://docs.microsoft.com/de-de/windows/win32/debug/pe-format
 
 #ifndef _PELOADER_CORE_
 #define _PELOADER_CORE_
@@ -118,11 +119,10 @@ struct PEFile
         std::uint16_t number;
     };
 
-private:
-    struct PESectionMan;
+    // Had to be turned public because we process some data directories in different C++ source files now.
     struct PEDataStream;
+    struct PESectionMan;
 
-public:
     struct PESection
     {
         friend struct PESectionMan;
@@ -852,7 +852,6 @@ public:
     };
     PEOptHeader peOptHeader;
 
-private:
     // Data inside of a PE file is stored in sections which have special
     // rules if they ought to be "zero padded".
     struct PEDataStream
@@ -870,6 +869,14 @@ private:
             this->dataOffset = dataOffset;
             this->seek_off = 0;
         }
+
+        inline PEDataStream( const PEDataStream& ) = default;
+        inline PEDataStream( PEDataStream&& ) = default;
+
+        inline ~PEDataStream( void ) = default;
+
+        inline PEDataStream& operator = ( const PEDataStream& ) = default;
+        inline PEDataStream& operator = ( PEDataStream&& ) = default;
 
         static inline PEDataStream fromDataRef( const PESectionDataReference& dataRef )
         {
@@ -987,11 +994,11 @@ private:
     {
         PESectionMan( std::uint32_t sectionAlignment, std::uint32_t imageBase );
         PESectionMan( const PESectionMan& right ) = delete;
-        PESectionMan( PESectionMan&& right );
+        PESectionMan( PESectionMan&& right ) noexcept;
         ~PESectionMan( void );
 
         PESectionMan& operator = ( const PESectionMan& right ) = delete;
-        PESectionMan& operator = ( PESectionMan&& right );
+        PESectionMan& operator = ( PESectionMan&& right ) noexcept;
 
         // Private section management API.
         PESection* AddSection( PESection&& theSection );
@@ -1302,6 +1309,7 @@ private:
 
     PESectionMan sections;
 
+private:
     // We need to know about file-space section allocations.
     // This is mainly used for reflection purposes during PE serialization.
     struct sect_allocInfo
@@ -1734,16 +1742,6 @@ public:
 
     PESectionAllocation resAllocEntry;
 
-    struct PERuntimeFunction
-    {
-        PESectionDataReference beginAddrRef;
-        PESectionDataReference endAddrRef;
-        PESectionDataReference unwindInfoRef;
-    };
-    peVector <PERuntimeFunction> exceptRFs;
-
-    PESectionAllocation exceptAllocEntry;
-
     struct PESecurity
     {
         // We just keep the certificate data around for anyone to care about
@@ -1991,6 +1989,67 @@ public:
     };
     PECommonLanguageRuntimeInfo clrInfo;
 
+    // Generic data directory entry.
+    struct PEDataDirectoryGeneric
+    {
+        inline PEDataDirectoryGeneric( void ) = default;
+        inline PEDataDirectoryGeneric( const PEDataDirectoryGeneric& ) = delete;
+        inline PEDataDirectoryGeneric( PEDataDirectoryGeneric&& ) = default;
+
+        virtual ~PEDataDirectoryGeneric( void )         {}
+
+        inline PEDataDirectoryGeneric& operator = ( const PEDataDirectoryGeneric& ) = delete;
+        inline PEDataDirectoryGeneric& operator = ( PEDataDirectoryGeneric&& ) = default;
+
+        virtual void SerializeDataDirectory( PESection *targetSect ) = 0;
+
+        virtual void* GetDirectoryData( void ) = 0;
+        virtual size_t GetDirectoryEntrySize( void ) const = 0;
+        virtual size_t GetDirectoryEntryCount( void ) const = 0;
+
+        // Location of said data on PE section space (non-empty only if synchronized).
+        PESectionAllocation allocEntry;
+    };
+
+    // Generic data directory parser. Should be a static extension.
+    struct PEDataDirectoryParser
+    {
+        virtual PEDataDirectoryGeneric* DeserializeData( std::uint16_t machine_id, PESectionMan& sections, PEDataStream stream, std::uint32_t va, std::uint32_t vsize ) const = 0;
+    };
+
+    // Storage of generic data directories.
+    // For off-shoring readers and writers into multiple source files.
+    struct PEGenericDataDirectories
+    {
+        inline PEGenericDataDirectories( void ) = default;
+        inline PEGenericDataDirectories( const PEGenericDataDirectories& ) = delete;
+        inline PEGenericDataDirectories( PEGenericDataDirectories&& right ) noexcept : entries( std::move( right.entries ) )
+        {
+            return;
+        }
+
+        inline ~PEGenericDataDirectories( void )
+        {
+            // Clear any generic data directories.
+            for ( auto *genDataDirNode : this->entries )
+            {
+                eir::static_del_struct <PEDataDirectoryGeneric, PEGlobalStaticAllocator> ( nullptr, genDataDirNode->GetValue() );
+            }
+            this->entries.Clear();
+        }
+
+        inline PEGenericDataDirectories& operator = ( const PEGenericDataDirectories& ) = delete;
+        inline PEGenericDataDirectories& operator = ( PEGenericDataDirectories&& right ) noexcept
+        {
+            this->entries = std::move( right.entries );
+
+            return *this;
+        }
+
+        peMap <std::uint32_t, PEDataDirectoryGeneric*> entries;
+    };
+    PEGenericDataDirectories genDataDirs;
+
     // Meta-data.
     bool isExtendedFormat;  // if true then we are PE32+ format.
     // NOTE: it is (theoretically) valid to travel a 32bit executable in PE32+ format.
@@ -2024,5 +2083,8 @@ public:
 public:
     void CommitDataDirectories( void );
 };
+
+// Include submodules.
+#include "peloader.freg.h"
 
 #endif //_PELOADER_CORE_

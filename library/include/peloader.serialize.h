@@ -328,6 +328,24 @@ struct IMAGE_IMPORT_DESCRIPTOR
 #define PEL_IMAGE_ORDINAL_FLAG64 0x8000000000000000
 #define PEL_IMAGE_ORDINAL_FLAG32 0x80000000
 
+struct IMAGE_RUNTIME_FUNCTION_ENTRY_MIPS
+{
+    std::uint32_t BeginAddress;     // absolute VA
+    std::uint32_t EndAddress;       // absolute VA
+    std::uint32_t ExceptHandler;
+    std::uint32_t HandlerData;
+    std::uint32_t PrologEndAddress; // absolute VA
+};
+
+struct IMAGE_RUNTIME_FUNCTION_ENTRY_ARM
+{
+    std::uint32_t BeginAddress;     // absolute VA
+    std::uint32_t PrologLength : 8;
+    std::uint32_t FunctionLength : 22;
+    std::uint32_t is32Bit : 1;
+    std::uint32_t hasExceptHandler : 1;
+};
+
 struct IMAGE_RUNTIME_FUNCTION_ENTRY_X64
 {
     std::uint32_t BeginAddress;

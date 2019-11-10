@@ -1018,45 +1018,6 @@ void PEFile::CommitDataDirectories( void )
                 }
             }
 
-            // * Exception Information.
-            const auto& exceptRFs = this->exceptRFs;
-
-            std::uint32_t numExceptEntries = (std::uint32_t)exceptRFs.GetCount();
-
-            if ( numExceptEntries != 0 )
-            {
-                // TODO: remember that exception data is machine dependent.
-                // revisit this if we need multi-architecture support.
-                // (currently we specialize on x86/AMD64)
-
-                if ( this->exceptAllocEntry.IsAllocated() == false )
-                {
-                    const std::uint32_t exceptTableSize = ( sizeof(PEStructures::IMAGE_RUNTIME_FUNCTION_ENTRY_X64) * numExceptEntries );
-
-                    PESectionAllocation exceptTableAlloc;
-                    rdonlySect.Allocate( exceptTableAlloc, exceptTableSize, sizeof(std::uint32_t) );
-
-                    // Now write all entries.
-                    // TODO: documentation says that these entries should be address sorted.
-                    for ( std::uint32_t n = 0; n < numExceptEntries; n++ )
-                    {
-                        const PERuntimeFunction& rfEntry = this->exceptRFs[ n ];
-
-                        PEStructures::IMAGE_RUNTIME_FUNCTION_ENTRY_X64 funcInfo;
-                        funcInfo.BeginAddress = rfEntry.beginAddrRef.GetRVA();
-                        funcInfo.EndAddress = rfEntry.endAddrRef.GetRVA();
-                        funcInfo.UnwindInfoAddress = rfEntry.unwindInfoRef.GetRVA();
-
-                        const std::uint32_t rfEntryOff = ( n * sizeof(PEStructures::IMAGE_RUNTIME_FUNCTION_ENTRY_X64) );
-
-                        exceptTableAlloc.WriteToSection( &funcInfo, sizeof(funcInfo), rfEntryOff );
-                    }
-
-                    // Remember this valid exception table.
-                    this->exceptAllocEntry = std::move( exceptTableAlloc );
-                }
-            }
-
             // nothing to allocate for security cookie.
 
             // *** BASE RELOC has to be written last because commit operations can spawn relocations.
@@ -1444,6 +1405,18 @@ void PEFile::CommitDataDirectories( void )
                     this->delayLoadsAllocEntry = std::move( delayLoadsAlloc );
                 }
             }
+
+            // * GENERIC DATA DIRECTORIES.
+            for ( auto *genDataDirNode : this->genDataDirs.entries )
+            {
+                PEDataDirectoryGeneric *genDataDir = genDataDirNode->GetValue();
+
+                if ( genDataDir->allocEntry.IsAllocated() == false )
+                {
+                    // Commit any uncommitted data directory, if it wants to of course.
+                    genDataDir->SerializeDataDirectory( &rdonlySect );
+                }
+            }
         }
 
         // SECTION-ALLOC PHASE.
@@ -1571,7 +1544,7 @@ void PEFile::CommitDataDirectories( void )
 
 void PEFile::WriteToStream( PEStream *peStream )
 {
-    // Write data that requires writing.
+    // Prepare data that requires writing.
     this->CommitDataDirectories();
     
     // Prepare the data directories.
@@ -1597,7 +1570,6 @@ void PEFile::WriteToStream( PEStream *peStream )
         dirRegHelper( peDataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_EXPORT ], this->exportDir.allocEntry );
         dirRegHelper( peDataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_IMPORT ], this->importsAllocEntry );
         dirRegHelper( peDataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_RESOURCE ], this->resAllocEntry );
-        dirRegHelper( peDataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_EXCEPTION ], this->exceptAllocEntry );
         
         // Attribute certificate table needs to be written after the sections!
 
@@ -1641,6 +1613,18 @@ void PEFile::WriteToStream( PEStream *peStream )
 
             comDescDataDir.VirtualAddress = this->clrInfo.dataOffset;
             comDescDataDir.Size = this->clrInfo.dataSize;
+        }
+
+        // Write all other generic data directory references.
+        for ( auto *genDataDirNode : this->genDataDirs.entries )
+        {
+            std::uint32_t idx = genDataDirNode->GetKey();
+            PEFile::PEDataDirectoryGeneric *genDataDir = genDataDirNode->GetValue();
+
+            // For now we limit ourselves to official data directories.
+            assert( idx < countof(peDataDirs) );
+
+            dirRegHelper( peDataDirs[ idx ], genDataDir->allocEntry );
         }
     }
 

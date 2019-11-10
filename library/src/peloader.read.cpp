@@ -8,6 +8,8 @@
 
 #include "peloader.internal.hxx"
 
+#include "peloader.datadirs.hxx"
+
 void PEFile::PEFileSpaceData::ReadFromFile( PEStream *peStream, const PESectionMan& sections, std::uint32_t rva, std::uint32_t filePtr, std::uint32_t dataSize )
 {
     // Determine the storage type of this debug information.
@@ -282,6 +284,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     // Cache some properties.
     std::uint16_t numSections;
     std::uint16_t peOptHeaderSize;
+    std::uint16_t machineType;
     {
         bool seekSuccess = peStream->Seek( peFileStartOffset );
 
@@ -310,7 +313,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         }
 
         // Read the machine type.
-        std::uint16_t machineType = peHeader.FileHeader.Machine;
+        machineType = peHeader.FileHeader.Machine;
 
         // Store stuff.
         peInfo.machine_id = machineType;
@@ -770,6 +773,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     // Load the directory information now.
     // We decide to create meta-data structs out of them.
     // If possible, delete the section that contains the meta-data.
+   
     // * EXPORT INFORMATION.
     PEExportDir expInfo;
     {
@@ -1297,98 +1301,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
                 false, peString <char16_t> (), 0,
                 resDir
             );
-        }
-    }
-
-    // * Exception Information.
-    peVector <PERuntimeFunction> exceptRFs;
-    {
-        const PEStructures::IMAGE_DATA_DIRECTORY& rtDir = dataDirs[ PEL_IMAGE_DIRECTORY_ENTRY_EXCEPTION ];
-
-        if ( rtDir.VirtualAddress != 0 )
-        {
-            // TODO: apparently exception data is machine dependent, so we should
-            // deserialize this in a special way depending on machine_id.
-            // (currently we specialize on x86/AMD64)
-
-            PESection *rtFuncsSect;
-            PEDataStream rtFuncsStream;
-            {
-                bool gotStream = sections.GetPEDataStream( rtDir.VirtualAddress, rtFuncsStream, &rtFuncsSect );
-
-                if ( !gotStream )
-                {
-                    throw peframework_exception(
-                        ePEExceptCode::CORRUPT_PE_STRUCTURE,
-                        "invalid PE exception directory"
-                    );
-                }
-            }
-
-            rtFuncsSect->SetPlacedMemory( this->exceptAllocEntry, rtDir.VirtualAddress, rtDir.Size );
-
-            const std::uint32_t numFuncs = ( rtDir.Size / sizeof( PEStructures::IMAGE_RUNTIME_FUNCTION_ENTRY_X64 ) );
-
-            for ( size_t n = 0; n < numFuncs; n++ )
-            {
-                PEStructures::IMAGE_RUNTIME_FUNCTION_ENTRY_X64 func;
-                rtFuncsStream.Read( &func, sizeof(func) );
-
-                // Since the runtime function entry stores RVAs, we want to remember them
-                // relocation independent.
-                PESection *beginAddrSect = nullptr;
-                std::uint32_t beginAddrSectOff = 0;
-
-                if ( std::uint32_t BeginAddress = func.BeginAddress )
-                {
-                    bool gotLocation = sections.GetPEDataLocation( BeginAddress, &beginAddrSectOff, &beginAddrSect );
-
-                    if ( !gotLocation )
-                    {
-                        throw peframework_exception(
-                            ePEExceptCode::CORRUPT_PE_STRUCTURE,
-                            "invalid PE runtime function begin address"
-                        );
-                    }
-                }
-                PESection *endAddrSect = nullptr;
-                std::uint32_t endAddrSectOff = 0;
-
-                if ( std::uint32_t EndAddress = func.EndAddress )
-                {
-                    bool gotLocation = sections.GetPEDataLocation( EndAddress, &endAddrSectOff, &endAddrSect );
-
-                    if ( !gotLocation )
-                    {
-                        throw peframework_exception(
-                            ePEExceptCode::CORRUPT_PE_STRUCTURE,
-                            "invalid PE runtime function end address"
-                        );
-                    }
-                }
-                PESection *unwindInfoSect = nullptr;
-                std::uint32_t unwindInfoSectOff = 0;
-
-                if ( std::uint32_t UnwindInfoAddress = func.UnwindInfoAddress )
-                {
-                    bool gotLocation = sections.GetPEDataLocation( UnwindInfoAddress, &unwindInfoSectOff, &unwindInfoSect );
-
-                    if ( !gotLocation )
-                    {
-                        throw peframework_exception(
-                            ePEExceptCode::CORRUPT_PE_STRUCTURE,
-                            "invalid PE runtime function unwind info address"
-                        );
-                    }
-                }
-
-                PERuntimeFunction funcInfo;
-                funcInfo.beginAddrRef = PESectionDataReference( beginAddrSect, beginAddrSectOff );
-                funcInfo.endAddrRef = PESectionDataReference( endAddrSect, endAddrSectOff );
-                funcInfo.unwindInfoRef = PESectionDataReference( unwindInfoSect, unwindInfoSectOff );
-
-                exceptRFs.AddToBack( std::move( funcInfo ) );
-            }
         }
     }
 
@@ -2026,6 +1938,60 @@ void PEFile::LoadFromDisk( PEStream *peStream )
         clrInfo.dataSize = clrDataDir.Size;
     }
 
+    // * all other Generic Data Directories.
+    PEGenericDataDirectories genDataDirs;
+    {
+        for ( std::uint32_t idx = 0; idx < countof(dataDirs); idx++ )
+        {
+            PEDataDirectoryParser *parser = findDataDirectoryParser( idx );
+
+            if ( parser != nullptr )
+            {
+                const PEStructures::IMAGE_DATA_DIRECTORY& dataDir = dataDirs[ idx ];
+
+                std::uint32_t va = dataDir.VirtualAddress;
+                std::uint32_t vsize = dataDir.Size;
+
+                if ( va != 0 )
+                {
+                    PESection *dataDirSect;
+                    PEDataStream dataDirStream;
+                    {
+                        bool gotStream = sections.GetPEDataStream( va, dataDirStream, &dataDirSect );
+
+                        if ( !gotStream )
+                        {
+                            throw peframework_exception(
+                                ePEExceptCode::CORRUPT_PE_STRUCTURE,
+                                "invalid PE generic data directory"
+                            );
+                        }
+                    }
+
+                    // Try to load the stuff from the serialized image.
+                    PEDataDirectoryGeneric *genDataDir = parser->DeserializeData( machineType, sections, std::move( dataDirStream ), va, vsize );
+
+                    if ( genDataDir != nullptr )
+                    {
+                        dataDirSect->SetPlacedMemory( genDataDir->allocEntry, va, vsize );
+
+                        // Store it.
+                        try
+                        {
+                            genDataDirs.entries[ idx ] = genDataDir;
+                        }
+                        catch( ... )
+                        {
+                            eir::static_del_struct <PEDataDirectoryGeneric, PEGlobalStaticAllocator> ( nullptr, genDataDir );
+
+                            throw;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // TODO: maybe validate all structures more explicitly in context now.
 
     // Successfully loaded!
@@ -2039,7 +2005,6 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     this->exportDir = std::move( expInfo );
     this->imports = std::move( impDescs );
     this->resourceRoot = std::move( resourceRoot );
-    this->exceptRFs = std::move( exceptRFs );
     this->securityCookie = std::move( securityCookie );
     this->baseRelocs = std::move( baseRelocs );
     this->debugDescs = std::move( debugDescs );
@@ -2050,6 +2015,7 @@ void PEFile::LoadFromDisk( PEStream *peStream )
     this->iatThunkAll = std::move( thunkIAT );
     this->delayLoads = std::move( delayLoads );
     this->clrInfo = std::move( clrInfo );
+    this->genDataDirs = std::move( genDataDirs );
 
     // Store some meta-data.
     this->isExtendedFormat = isExtendedFormat;        // important for casting certain offsets.
